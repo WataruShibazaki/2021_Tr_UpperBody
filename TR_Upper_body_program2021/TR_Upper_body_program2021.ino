@@ -1,4 +1,4 @@
-//学ロボ2021 上半身プログラム ver1.0.0
+//学ロボ2021 上半身プログラム ver1.0.1
 #include "MsTimerTPU3.h"
 #include "ISO.h"
 #include <Arduino.h>
