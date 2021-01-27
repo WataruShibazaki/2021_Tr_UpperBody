@@ -1,6 +1,7 @@
-//学ロボ2021 上半身プログラム ver1.0.1
+//学ロボ2021 上半身プログラム ver1.0.0
 #include "MsTimerTPU3.h"
 #include "ISO.h"
+#include "define.h"
 #include <Arduino.h>
 #define timer_time 10
 #define Serial_fm Serial1
@@ -36,9 +37,9 @@ void setup()
   MsTimerTPU3::set((int)timer_time, timer);
   MsTimerTPU3::start();
   ISO::ISOkeisu_SET();
-  ISO::ISOkeisu_MTU1();
-  ISO::ISOkeisu_MTU2();
-  ISO::ISOkeisu_TPU1();
+  ISO::ISOkeisu_MTU1(400);
+  ISO::ISOkeisu_MTU2(400);
+  ISO::ISOkeisu_TPU1(400);
 }
 bool read_mfs()
 {
@@ -127,11 +128,16 @@ void loop()
   {
     digitalWrite(PIN_LED3, read_mfs());
     digitalWrite(PIN_LED2, write_mts());
-    //Serial.print("ISO:");
-    //int val =ISO::ISOkeisu_read_MTU1(false);
-    //Serial.println(val);
+    if(mfs[0] == master_collection_order){
+
+    }
+    else if(mfs[0] == master_shot_order){
+
+    }
+    else if(mfs[0] == master_initialize_order){
+
+    }
     flag_10ms = false;
   }
 
 }
-
