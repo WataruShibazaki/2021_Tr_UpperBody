@@ -1,7 +1,8 @@
-//学ロボ2021 上半身プログラム ver1.0.0
+//学ロボ2021 上半身プログラム ver1.0.3
 #include "MsTimerTPU3.h"
 #include "ISO.h"
 #include "define.h"
+#include "RoboClaw.h"
 #include <Arduino.h>
 #define timer_time 10
 #define Serial_fm Serial1
@@ -11,6 +12,7 @@ uint8_t chks;     //チェックサム
 char mfs_n;       //改行コード
 bool flag_10ms;
 int count=0;
+RoboClaw roboclaw(&Serial2,10000);
 
 uint8_t mts[2]; //マスターに送るデーター　チェックサム mts=master to serial
 void timer()
@@ -31,6 +33,7 @@ void setup()
 {
   Serial.begin(115200);
   Serial_fm.begin(115200);
+  roboclaw.begin(38400);
   pinMode(PIN_LED3, OUTPUT);
   pinMode(PIN_LED2, OUTPUT);
   pinMode(PIN_LED1, OUTPUT);
@@ -129,13 +132,26 @@ void loop()
     digitalWrite(PIN_LED3, read_mfs());
     digitalWrite(PIN_LED2, write_mts());
     if(mfs[0] == master_collection_order){
-
+      roboclaw.ForwardBackwardM1(RC2_ad,96);
+      roboclaw.ForwardBackwardM2(RC2_ad,96);
+      roboclaw.ForwardBackwardM1(RC3_ad,96);
+      roboclaw.ForwardBackwardM2(RC3_ad,96);
     }
     else if(mfs[0] == master_shot_order){
-
+      roboclaw.ForwardBackwardM1(RC1_ad,96);
+      roboclaw.ForwardBackwardM2(RC1_ad,96);
+      roboclaw.ForwardBackwardM1(RC2_ad,96);
+      roboclaw.ForwardBackwardM2(RC2_ad,96);
+      roboclaw.ForwardBackwardM1(RC3_ad,96);
+      roboclaw.ForwardBackwardM2(RC3_ad,96);
     }
     else if(mfs[0] == master_initialize_order){
-
+      roboclaw.ForwardBackwardM1(RC1_ad,96);
+      roboclaw.ForwardBackwardM2(RC1_ad,96);
+      roboclaw.ForwardBackwardM1(RC2_ad,96);
+      roboclaw.ForwardBackwardM2(RC2_ad,96);
+      roboclaw.ForwardBackwardM1(RC3_ad,96);
+      roboclaw.ForwardBackwardM2(RC3_ad,96);
     }
     flag_10ms = false;
   }
