@@ -6,7 +6,7 @@
 #include "RoboClaw.h"
 #define timer_time 10
 #define Serial_fm Serial1
-uint8_t mfs_p[6]; //自己位置データ　mfs=master from serial p=position
+uint8_t mfs_p[6]; //自己位置データ[Y,Y,X,X,Z,Z]　mfs=master from serial p=position
 uint8_t mfs[2];   //命令　チェックサム
 uint8_t chks;     //チェックサム
 char mfs_n;       //改行コード
@@ -88,25 +88,7 @@ bool read_mfs()
   }
   else
   {
-    /*Serial.print("failure");
-     Serial.print(mfs_p[0]);
-     Serial.print("-");
-     Serial.print(mfs_p[1]);
-     Serial.print("-");
-     Serial.print(mfs_p[2]);
-     Serial.print("-");
-     Serial.print(mfs_p[3]);
-     Serial.print("-");
-     Serial.print(mfs_p[4]);
-     Serial.print("-");
-     Serial.print(mfs_p[5]);
-     Serial.print("-");
-     Serial.print(mfs[0]);
-     Serial.print("-");
-     Serial.print(mfs[1]);
-     Serial.print("-");
-     Serial.print(chks);
-     Serial.println(mfs_n);*/
+    /*Serial.print("failure");Serial.print(mfs_p[0]);Serial.print("-");Serial.print(mfs_p[1]);Serial.print("-");Serial.print(mfs_p[2]);Serial.print("-");Serial.print(mfs_p[3]);Serial.print("-");Serial.print(mfs_p[4]);Serial.print("-");Serial.print(mfs_p[5]);Serial.print("-");Serial.print(mfs[0]);Serial.print("-");Serial.print(mfs[1]);Serial.print("-");Serial.print(chks);Serial.println(mfs_n);*/
     success_r = false;
   }
   return success_r;
@@ -132,11 +114,16 @@ void loop()
     digitalWrite(PIN_LED3, read_mfs());
     digitalWrite(PIN_LED2, write_mts());
     if(mfs[0] == master_collection_order){
+      //方位角調整
+      //アブソリュートエンコーダー読み取り
+      roboclaw.ForwardBackwardM2(RC3_ad,96);
+      
       roboclaw.ForwardBackwardM1(RC2_ad,96);
       roboclaw.ForwardBackwardM2(RC2_ad,96);
       roboclaw.ForwardBackwardM1(RC3_ad,96);
       roboclaw.ForwardBackwardM2(RC3_ad,96);
     }
+    
     else if(mfs[0] == master_shot_order){
       roboclaw.ForwardBackwardM1(RC1_ad,96);
       roboclaw.ForwardBackwardM2(RC1_ad,96);
