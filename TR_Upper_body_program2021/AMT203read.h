@@ -9,8 +9,8 @@ version:1.0
 #ifndef _AMT203read_h_
 #define _AMT203read_h_
 
-#include<SPI.h>
-#include<Arduino.h>
+#include"SPI.h"
+#include"Arduino.h"
 
 
 namespace ISO{
