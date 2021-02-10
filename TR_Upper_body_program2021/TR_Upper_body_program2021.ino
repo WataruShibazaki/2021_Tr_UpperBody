@@ -6,6 +6,7 @@
 #include "RoboClaw.h"
 #define timer_time 10
 #define Serial_fm Serial1
+
 uint8_t mfs_p[6]; //自己位置データ[Y,Y,X,X,Z,Z]　mfs=master from serial p=position
 uint8_t mfs[2];   //命令　チェックサム
 uint8_t chks;     //チェックサム
@@ -13,7 +14,14 @@ char mfs_n;       //改行コード
 bool flag_10ms;
 int count=0;
 int AE1=0,AE2=0;//アブソリュートエンコーダーの値
+int　M1max,M2max,M5max;
+double azimuth,shotdeg;//方位角,射角
+double enc1,encpast1,encsabn1,encval1,encr1;
+double enc2,encpast2,encsabn2,encval2,encr2;
+
 RoboClaw roboclaw(&Serial2,10000);
+AMT203read AbsoluteENC(true);
+PID pid(0.0, 0.0, 0.0,0.01);
 
 uint8_t mts[2]; //マスターに送るデーター　チェックサム mts=master to serial
 void timer()
@@ -35,6 +43,7 @@ void setup()
   Serial.begin(115200);
   Serial_fm.begin(115200);
   roboclaw.begin(38400);
+  AbsoluteENC.AMT203_SPI_set(10,30);
   pinMode(PIN_LED3, OUTPUT);
   pinMode(PIN_LED2, OUTPUT);
   pinMode(PIN_LED1, OUTPUT);
@@ -124,7 +133,18 @@ void loop()
     digitalWrite(PIN_LED2, write_mts());
     if(mfs[0] == master_collection_order){//回収作業
       //方位角調整
-      //AE2読み取り
+      AE2 = AbsoluteENC.AMT203_read2(0);//AE2読み取り
+      encsabn2=AE2-encpast2;
+      if(encsabn2>3500){
+        encsabn2=encsabn2-4095;
+      }
+      if(encsabn2<-3500){
+        encsabn2=encsabn2+4095;
+      }
+      encval2+=encsabn2;
+      encpast2 = AE2;
+      encr2=((encval2/4095)*6.28);
+      mtspeed = pid.getCmd(azimuth,encr2,127);
       roboclaw.ForwardBackwardM2(RC3_ad,96);//M2　PID角度制御をAE2で決めた角度に行う
       
       roboclaw.ForwardBackwardM2(RC2_ad,96);//M5　スライドレール調整　PID角度調整
@@ -142,10 +162,10 @@ void loop()
     else if(mfs[0] == master_shot_order){//発射作業
       //角度計算
       //方位角調整
-      //AE2読み取り
+      AE2 = AbsoluteENC.AMT203_read2(0);//AE2読み取り
       roboclaw.ForwardBackwardM2(RC3_ad,96);//M2　PID角度制御をAE2で計算した結果に行う
       //射角調整
-      //AE1読み取り
+      AE1 = AbsoluteENC.AMT203_read1(0);//AE1読み取り
       roboclaw.ForwardBackwardM1(RC2_ad,96);//M1　PID角度制御をAE1で計算した結果に行う
       digitalWrite(AS5_PIN,1);
 
@@ -161,6 +181,5 @@ void loop()
     digitalWrite(AS2_PIN,0);
     }
     flag_10ms = false;
-  }
-
+  } 
 }
