@@ -13,13 +13,15 @@
 #define RC2_ad 0x80 //RoboClaw2のアドレス　128(DEC)
 #define RC3_ad 0x80 //RoboClaw3のアドレス　128(DEC)
 
-#define AS1_PIN 24;//関節下(AS1)
-#define AS2_PIN 25;//関節上(AS2)
-#define AS3_PIN 26;//回収エアシリンダ(AS3)
-#define AS4_PIN 27;//射出用意エアシリンダ(AS4)
-#define AS5_PIN 28;//射出用エアシリンダ(AS5)
-#define AS6_PIN 29;
-#define AS7_PIN 30;
-#define AS8_PIN 31;
+#define AS1_PIN 24//関節下(AS1)
+#define AS2_PIN 25//関節上(AS2)
+#define AS3_PIN 26//回収エアシリンダ(AS3)
+#define AS4_PIN 27//射出用意エアシリンダ(AS4)
+#define AS5_PIN 28//射出用エアシリンダ(AS5)
+#define AS6_PIN 29
+#define AS7_PIN 30
+#define AS8_PIN 31
+
+#define M5ppr 400
 
 #endif

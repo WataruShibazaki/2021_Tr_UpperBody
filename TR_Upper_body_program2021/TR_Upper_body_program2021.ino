@@ -1,9 +1,11 @@
-//学ロボ2021 上半身プログラム ver1.1.0
+//学ロボ2021 上半身プログラム ver1.2.0
 #include "MsTimerTPU3.h"
 #include "ISO.h"
 #include "define.h"
 #include "Arduino.h"
 #include "RoboClaw.h"
+#include "PIDclass.h"
+#include "AMT203read.h"
 #define timer_time 10
 #define Serial_fm Serial1
 
@@ -12,16 +14,22 @@ uint8_t mfs[2];   //命令　チェックサム
 uint8_t chks;     //チェックサム
 char mfs_n;       //改行コード
 bool flag_10ms;
+bool flag1 = false,flag2 = false,flag3 = false,flag4 = false;
+bool flag5 = false,flag6 = false,flag7 = false,flag8 = false,flag9 = false;
 int count=0;
 int AE1=0,AE2=0;//アブソリュートエンコーダーの値
-int　M1max,M2max,M5max;
-double azimuth,shotdeg;//方位角,射角
-double enc1,encpast1,encsabn1,encval1,encr1;
-double enc2,encpast2,encsabn2,encval2,encr2;
+int M1max,M2max,M5max;
+double azimuth,shotdeg,slide;//方位角,射角,スライドレール
+double mtspeedM1,enc1,encpast1,encsabn1,encval1,encrM1;
+double mtspeedM2,enc2,encpast2,encsabn2,encval2,encrM2;
+double mtspeedM5,encrM5;
+double mtspeed_shot;
 
 RoboClaw roboclaw(&Serial2,10000);
 AMT203read AbsoluteENC(true);
-PID pid(0.0, 0.0, 0.0,0.01);
+PID M1pid(0.0, 0.0, 0.0,0.01);
+PID M2pid(0.0, 0.0, 0.0,0.01);
+PID M5pid(0.0, 0.0, 0.0,0.01);
 
 uint8_t mts[2]; //マスターに送るデーター　チェックサム mts=master to serial
 void timer()
@@ -58,9 +66,8 @@ void setup()
   MsTimerTPU3::set((int)timer_time, timer);
   MsTimerTPU3::start();
   ISO::ISOkeisu_SET();
-  ISO::ISOkeisu_MTU1(400);
+  ISO::ISOkeisu_MTU1(M5ppr);//M5
   ISO::ISOkeisu_MTU2(400);
-  ISO::ISOkeisu_TPU1(400);
 }
 bool read_mfs()
 {
@@ -124,7 +131,7 @@ bool write_mts()
   return success_w;
 }
 
-void loop()
+void loop()////////////////////////////////////////////////////////////////////////////
 {
   digitalWrite(PIN_LED1, flag_10ms);
   if (flag_10ms == true)
@@ -132,7 +139,9 @@ void loop()
     digitalWrite(PIN_LED3, read_mfs());
     digitalWrite(PIN_LED2, write_mts());
     if(mfs[0] == master_collection_order){//回収作業
-      //方位角調整
+      //↓[1]方位角調整
+      azimuth = 3.14;//方位角設定
+
       AE2 = AbsoluteENC.AMT203_read2(0);//AE2読み取り
       encsabn2=AE2-encpast2;
       if(encsabn2>3500){
@@ -143,43 +152,126 @@ void loop()
       }
       encval2+=encsabn2;
       encpast2 = AE2;
-      encr2=((encval2/4095)*6.28);
-      mtspeed = pid.getCmd(azimuth,encr2,127);
-      roboclaw.ForwardBackwardM2(RC3_ad,96);//M2　PID角度制御をAE2で決めた角度に行う
-      
-      roboclaw.ForwardBackwardM2(RC2_ad,96);//M5　スライドレール調整　PID角度調整
+      encrM2=(encval2/4095)*6.28;
+      mtspeedM2 = M2pid.getCmd(azimuth,encrM2,M2max);
+      roboclaw.ForwardBackwardM2(RC3_ad,mtspeedM2);//M2　PID角度制御をAE2で決めた角度に行う
+      if(encrM2<=azimuth+0.15&&encrM2>=azimuth-0.15){
+        flag2 = true;
+      }
+      //↑[1]
+      //↓[2]スライドレール調整
+      if(flag2 == true){
+      slide = 3.14;//スライドレール調整
+      encrM5 = (ISO::ISOkeisu_read_MTU1(0)/M5ppr)*6.28;
+      mtspeedM5 = M5pid.getCmd(slide,encrM5,M5max);
+      roboclaw.ForwardBackwardM2(RC2_ad,mtspeedM5);//M5　スライドレール調整　PID角度調整
+
       digitalWrite(AS1_PIN,0);
       digitalWrite(AS2_PIN,0);
       digitalWrite(AS3_PIN,1);
       digitalWrite(AS4_PIN,1);
-
+      }
+      if(encrM5<=slide+0.15&&encrM5>=slide-0.15){
+        flag2 = false;
+        flag3 = true;
+      }
+      //↑[2]
+      //↓[3]回収
+      if(flag3 == true){
       digitalWrite(AS3_PIN,0);
-
+      flag3 = false;
+      flag4 = true;
+      }
+      //↑[3]
+      //↓[4]回収完了
+      if(flag4 == true){
       digitalWrite(AS1_PIN,1);
       digitalWrite(AS4_PIN,0);
+      flag4 = false;
+      flag5 = true;
+      }
+      //↑[4]
     }
     
-    else if(mfs[0] == master_shot_order){//発射作業
-      //角度計算
-      //方位角調整
+    else if(mfs[0] == master_shot_order){
+     //発射作業
+     //↓[5]角度計算
+      if(flag5 = true){
+        azimuth = 3.14;
+        shotdeg = 3.14;
+        slide = 3.14;
+        flag5 = false;
+        flag6 = true;
+      }
+      //↑[5]
+      //↓[6]射角・方位角調整
+      if(flag6 = true){
       AE2 = AbsoluteENC.AMT203_read2(0);//AE2読み取り
-      roboclaw.ForwardBackwardM2(RC3_ad,96);//M2　PID角度制御をAE2で計算した結果に行う
+      encsabn2=AE2-encpast2;
+      if(encsabn2>3500){
+        encsabn2=encsabn2-4095;
+      }
+      if(encsabn2<-3500){
+        encsabn2=encsabn2+4095;
+      }
+      encval2+=encsabn2;
+      encpast2 = AE2;
+      encrM2=(encval2/4095)*6.28;
+      mtspeedM2 = M2pid.getCmd(azimuth,encrM2,M2max);
+      roboclaw.ForwardBackwardM2(RC3_ad,mtspeedM2);//M2　PID角度制御をAE2で計算した結果に行う
+
       //射角調整
-      AE1 = AbsoluteENC.AMT203_read1(0);//AE1読み取り
-      roboclaw.ForwardBackwardM1(RC2_ad,96);//M1　PID角度制御をAE1で計算した結果に行う
+      AE2 = AbsoluteENC.AMT203_read1(0);//AE2読み取り
+      encsabn1=AE1-encpast1;
+      if(encsabn1>3500){
+        encsabn1=encsabn1-4095;
+      }
+      if(encsabn1<-3500){
+        encsabn1=encsabn1+4095;
+      }
+      encval1+=encsabn1;
+      encpast1 = AE1;
+      encrM1=(encval1/4095)*6.28;
+      mtspeedM1 = M1pid.getCmd(shotdeg,encrM1,M1max);
+      roboclaw.ForwardBackwardM1(RC2_ad,mtspeedM1);//M1　PID角度制御をAE1で計算した結果に行う
       digitalWrite(AS5_PIN,1);
-
+      if(encrM2<=azimuth+0.15&&encrM2>=azimuth-0.15&&encrM1<=shotdeg+0.15&&encrM1>=shotdeg-0.15){
+        flag6 = false;
+        flag7 = true;
+      }
+      }
+      //↑[6]
+      //↓[7]スライドレール作動
+      if(flag7 == true){
       digitalWrite(AS3_PIN,0);
-      roboclaw.ForwardBackwardM2(RC2_ad,96);//M5　スライドレール調整　PID角度調整
-
-      roboclaw.ForwardBackwardM1(RC1_ad,96);//M3発射　PID速度制御　計算した結果から行う
-      roboclaw.ForwardBackwardM2(RC1_ad,96);//M4発射　PID速度制御　計算した結果から行う
+      encrM5=(ISO::ISOkeisu_read_MTU1(0)/M5ppr)*6.28;
+      mtspeedM5 = M5pid.getCmd(slide,encrM5,M5max);
+      roboclaw.ForwardBackwardM2(RC2_ad,mtspeedM5);//M5　スライドレール調整　PID角度調整
+      
+      roboclaw.ForwardBackwardM1(RC1_ad,mtspeed_shot);//M3発射　PID速度制御　計算した結果から行う
+      roboclaw.ForwardBackwardM2(RC1_ad,mtspeed_shot);//M4発射　PID速度制御　計算した結果から行う
+      if(encrM5<=slide+0.15&&encrM5>=slide-0.15){
+        flag7 = false;
+        flag8 = true;
+      }
+      }
+      //↑[7]
+      //↓[8]発射
+      if(flag8 == true){
       digitalWrite(AS5_PIN,0);
+      flag8 = false;
+      }
+      //↑[8]
     }
     else if(mfs[0] == master_initialize_order){//初期化
+    //↓[9]初期化
     digitalWrite(AS1_PIN,1);
     digitalWrite(AS2_PIN,0);
+    //↑[9]
     }
+    //安全停止
+    /*digitalWrite(AS1_PIN,0);
+    digitalWrite(AS2_PIN,1);*/
     flag_10ms = false;
   } 
 }
