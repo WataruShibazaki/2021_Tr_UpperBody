@@ -141,20 +141,6 @@ void loop()/////////////////////////////////////////////////////////////////////
     if(mfs[0] == master_collection_order){//回収作業
       //↓[1]方位角調整
       azimuth = 3.14;//方位角設定
-
-      AE2 = AbsoluteENC.AMT203_read2(0);//AE2読み取り
-      encsabn2=AE2-encpast2;
-      if(encsabn2>3500){
-        encsabn2=encsabn2-4095;
-      }
-      if(encsabn2<-3500){
-        encsabn2=encsabn2+4095;
-      }
-      encval2+=encsabn2;
-      encpast2 = AE2;
-      encrM2=(encval2/4095)*6.28;
-      mtspeedM2 = M2pid.getCmd(azimuth,encrM2,M2max);
-      roboclaw.ForwardBackwardM2(RC3_ad,mtspeedM2);//M2　PID角度制御をAE2で決めた角度に行う
       if(encrM2<=azimuth+0.15&&encrM2>=azimuth-0.15){
         flag2 = true;
       }
@@ -206,34 +192,6 @@ void loop()/////////////////////////////////////////////////////////////////////
       //↑[5]
       //↓[6]射角・方位角調整
       if(flag6 = true){
-      AE2 = AbsoluteENC.AMT203_read2(0);//AE2読み取り
-      encsabn2=AE2-encpast2;
-      if(encsabn2>3500){
-        encsabn2=encsabn2-4095;
-      }
-      if(encsabn2<-3500){
-        encsabn2=encsabn2+4095;
-      }
-      encval2+=encsabn2;
-      encpast2 = AE2;
-      encrM2=(encval2/4095)*6.28;
-      mtspeedM2 = M2pid.getCmd(azimuth,encrM2,M2max);
-      roboclaw.ForwardBackwardM2(RC3_ad,mtspeedM2);//M2　PID角度制御をAE2で計算した結果に行う
-
-      //射角調整
-      AE2 = AbsoluteENC.AMT203_read1(0);//AE2読み取り
-      encsabn1=AE1-encpast1;
-      if(encsabn1>3500){
-        encsabn1=encsabn1-4095;
-      }
-      if(encsabn1<-3500){
-        encsabn1=encsabn1+4095;
-      }
-      encval1+=encsabn1;
-      encpast1 = AE1;
-      encrM1=(encval1/4095)*6.28;
-      mtspeedM1 = M1pid.getCmd(shotdeg,encrM1,M1max);
-      roboclaw.ForwardBackwardM1(RC2_ad,mtspeedM1);//M1　PID角度制御をAE1で計算した結果に行う
       digitalWrite(AS5_PIN,1);
       if(encrM2<=azimuth+0.15&&encrM2>=azimuth-0.15&&encrM1<=shotdeg+0.15&&encrM1>=shotdeg-0.15){
         flag6 = false;
@@ -269,6 +227,34 @@ void loop()/////////////////////////////////////////////////////////////////////
     digitalWrite(AS2_PIN,0);
     //↑[9]
     }
+    AE1 = AbsoluteENC.AMT203_read1(0);//AE2読み取り
+    encsabn1=AE1-encpast1;
+    if(encsabn1>3500){
+      encsabn1=encsabn1-4095;
+    }
+    if(encsabn1<-3500){
+      encsabn1=encsabn1+4095;
+    }
+    encval1+=encsabn1;
+    encpast1 = AE1;
+    encrM1=(encval1/4095)*6.28;
+    mtspeedM1 = M1pid.getCmd(shotdeg,encrM1,M1max);
+    roboclaw.ForwardBackwardM1(RC2_ad,mtspeedM1);//M1　PID角度制御をAE1で決めた角度に行う
+
+    AE2 = AbsoluteENC.AMT203_read2(0);//AE2読み取り
+    encsabn2=AE2-encpast2;
+    if(encsabn2>3500){
+      encsabn2=encsabn2-4095;
+    }
+    if(encsabn2<-3500){
+      encsabn2=encsabn2+4095;
+    }
+    encval2+=encsabn2;
+    encpast2 = AE2;
+    encrM2=(encval2/4095)*6.28;
+    mtspeedM2 = M2pid.getCmd(azimuth,encrM2,M2max);
+    roboclaw.ForwardBackwardM2(RC3_ad,mtspeedM2);//M2　PID角度制御をAE2で決めた角度に行う
+
     //安全停止
     /*digitalWrite(AS1_PIN,0);
     digitalWrite(AS2_PIN,1);*/
