@@ -1,4 +1,5 @@
 //学ロボ2021 上半身プログラム ver1.2.0
+//制御の大方の流れは"https://docs.google.com/presentation/d/1agclaAzMRlz074pZXtvcgefBO3hHuOG_t2Uiqf9cAfk/edit?usp=sharing"で確認できます
 #include "MsTimerTPU3.h"
 #include "ISO.h"
 #include "define.h"

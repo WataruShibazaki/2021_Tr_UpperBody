@@ -22,6 +22,8 @@
 #define AS7_PIN 30
 #define AS8_PIN 31
 
+#define LED_status 43
+
 #define M5ppr 400
 
 #endif
