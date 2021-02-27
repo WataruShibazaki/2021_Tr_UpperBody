@@ -81,7 +81,7 @@ void ISO::ISOkeisu_TPU2(int ppr)//P0 P1  P0がSDカード回路に接続あり
 
     ppr_TPU2 = ppr*4;
 }
-double ISO::ISOkeisu_read_MTU1(int mode)
+double ISO::ISOkeisu_read_MTU1(int mode,bool zero)
 {
     int isosabn1=0,isopast1=0;
     double isoval1=0,isoout1;
@@ -95,6 +95,9 @@ double ISO::ISOkeisu_read_MTU1(int mode)
             isosabn1=isosabn1+65535;
         }
         isoval1+=isosabn1;
+        if(zero == true){
+          MTU1.TCNT=0;
+        }
         if(mode==2){
             isoout1 = isoval1*(360/ppr_MTU1);
         }
@@ -107,7 +110,7 @@ double ISO::ISOkeisu_read_MTU1(int mode)
     }
     return isoout1;
 }
-double ISO::ISOkeisu_read_MTU2(int mode)
+double ISO::ISOkeisu_read_MTU2(int mode,bool zero)
 {
     int isosabn2=0,isopast2=0;
     double isoval2=0,isoout2;
@@ -121,6 +124,9 @@ double ISO::ISOkeisu_read_MTU2(int mode)
              isosabn2=isosabn2+65535;
          }
          isoval2+=isosabn2;
+        if(zero == true){
+          MTU2.TCNT=0;
+        }
         if(mode==2){
             isoout2 = isoval2*(360/ppr_MTU2);
         }
@@ -133,7 +139,7 @@ double ISO::ISOkeisu_read_MTU2(int mode)
     }
     return isoout2;
 }
-double ISO::ISOkeisu_read_TPU1(int mode)
+double ISO::ISOkeisu_read_TPU1(int mode,bool zero)
 {
     int isosabn3=0,isopast3=0;
     double isoval3=0,isoout3;
@@ -147,6 +153,9 @@ double ISO::ISOkeisu_read_TPU1(int mode)
              isosabn3=isosabn3+65535;
          }
          isoval3+=isosabn3;
+        if(zero == true){
+          TPU1.TCNT=0;
+        }
         if(mode==2){
             isoout3 = isoval3*(360/ppr_TPU1);
         }
@@ -159,7 +168,7 @@ double ISO::ISOkeisu_read_TPU1(int mode)
     }
     return isoout3;
 }
-double ISO::ISOkeisu_read_TPU2(int mode)
+double ISO::ISOkeisu_read_TPU2(int mode,bool zero)
 {
     int isosabn4=0,isopast4=0;
     double isoval4=0,isoout4;
@@ -173,6 +182,9 @@ double ISO::ISOkeisu_read_TPU2(int mode)
              isosabn4=isosabn4+65535;
          }
          isoval4+=isosabn4;
+        if(zero == true){
+          TPU2.TCNT=0;
+        }
         if(mode==2){
             isoout4 = isoval4*(360/ppr_TPU2);
         }

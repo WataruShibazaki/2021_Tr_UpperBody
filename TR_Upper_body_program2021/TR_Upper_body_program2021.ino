@@ -1,4 +1,4 @@
-//学ロボ2021 上半身プログラム ver1.2.0
+//学ロボ2021 上半身プログラム ver1.5.0
 //制御の大方の流れは"https://docs.google.com/presentation/d/1agclaAzMRlz074pZXtvcgefBO3hHuOG_t2Uiqf9cAfk/edit?usp=sharing"で確認できます
 #include "MsTimerTPU3.h"
 #include "ISO.h"
@@ -14,37 +14,54 @@ uint8_t mfs_p[6]; //自己位置データ[Y,Y,X,X,Z,Z]　mfs=master from serial 
 uint8_t mfs[4];   //命令1 命令2　チェックサム 改行コード
 uint8_t mfs_pre;  //成型用の箱
 uint8_t chks;     //チェックサム
-bool flag_10ms;
-bool flag1 = false, flag2 = false, flag3 = false, flag4 = false;
+int master_pod1_1 = 0, master_pod1_2 = 0, master_pod2_1 = 0, master_pod2_2 = 0, master_pod3_0 = 0;
+int master_pic_order = 0, master_release_order = 0, master_prepare_order = 0, master_shot_order = 0;
+bool flag_10ms, flag10s;
+bool flag0 = true, flag1 = false, flag2 = false, flag3 = false, flag4 = false;
 bool flag5 = false, flag6 = false, flag7 = false, flag8 = false, flag9 = false;
-int count = 0;
+bool flag_slide = false;
+int count10ms = 0, count10s = 0, count_shot = 0;
 int AE1 = 0, AE2 = 0; //アブソリュートエンコーダーの値
 int M1max, M2max, M5max;
-double azimuth, shotdeg, slide; //方位角,射角(0~1.70[rad](0~100°)),スライドレール
-double mtspeedM1, enc1, encpast1, encsabn1, encval1, encrM1;
-double mtspeedM2, enc2, encpast2, encsabn2, encval2, encrM2;
-double mtspeedM5, encrM5;
-double mtspeed_shot;
+double azimuth_tgt = 0, shotdeg_tgt = 0, slide_tgt = 0;                                            //方位角,射角(0~1.70[rad](0~100°)),スライドレール
+double speed_azimuth, enc_azimuth, encpast_azimuth, encsabn_azimuth, encval_azimuth, encr_azimuth; //AE1
+double speed_shotdeg, enc_shotdeg, encpast_shotdeg, encsabn_shotdeg, encval_shotdeg, encr_shotdeg; //AE2
+double speed_slide, encr_slide;                                                                    //スライドレール
+double speed_shot;
 
 RoboClaw roboclaw(&Serial1, 10000);
 AMT203read AbsoluteENC(true);
-PID M1pid(0.0, 0.0, 0.0, 0.01);
-PID M2pid(0.0, 0.0, 0.0, 0.01);
-PID M5pid(0.0, 0.0, 0.0, 0.01);
-
+PID pid_shotdeg(0.0, 0.0, 0.0, 0.01);
+PID pid_azimuth(0.0, 0.0, 0.0, 0.01);
+PID pid_slide(0.0, 0.0, 0.0, 0.01);
+bool flag_1s = false;
 uint8_t mts[2]; //マスターに送るデーター　チェックサム mts=master to serial
 void timer()
 {
-  count++;
-  if (count == 1)
+  count10ms++;
+  count10s++;
+  if (count10ms >= 1)
   {
     flag_10ms = true;
-    count = 0;
+    count10ms = 0;
   }
-  else
+  static int count1s = 0;
+  count1s++;
+  if (count1s >= 100)
+  {
+    flag_1s = true;
+    count1s = 0;
+  }
+  if (count10s >= 1000)
+  {
+    flag10s = true;
+    count10s = 0;
+  }
+  /*else
   {
     flag_10ms = false;
-  }
+    flag10s = false;
+  }*/
 }
 
 void setup()
@@ -53,6 +70,14 @@ void setup()
   Serial_fm.begin(115200);
   roboclaw.begin(115200);
   AbsoluteENC.AMT203_SPI_set(10, 30);
+
+  pid_slide.PIDinit(0.0, 0.0);
+  pid_slide.setPara(10, 0, 0);
+  pid_azimuth.PIDinit(0.0, 0.0);
+  pid_azimuth.setPara(150, 0, 20);
+  pid_shotdeg.PIDinit(0.0, 0.0);
+  pid_shotdeg.setPara(70, 0, 6.5);
+
   pinMode(PIN_LED3, OUTPUT);
   pinMode(PIN_LED2, OUTPUT);
   pinMode(PIN_LED1, OUTPUT);
@@ -64,42 +89,42 @@ void setup()
   pinMode(AS6_PIN, OUTPUT);
   pinMode(AS7_PIN, OUTPUT);
   pinMode(AS8_PIN, OUTPUT);
+  pinMode(KOUDEN, INPUT_PULLUP);
+  pinMode(A0, OUTPUT);
   MsTimerTPU3::set((int)timer_time, timer);
   MsTimerTPU3::start();
   ISO::ISOkeisu_SET();
   ISO::ISOkeisu_MTU1(M5ppr); //M5
   ISO::ISOkeisu_MTU2(400);
+  AbsoluteENC.AMT203_set_zero1();
+  AbsoluteENC.AMT203_set_zero2();
 }
 bool read_mfs()
 {
   bool success_r = false;
   if (Serial_fm.available() > 0)
   {
-    /*mfs_p[0] = (uint8_t)Serial_fm.read();
-    mfs_p[1] = (uint8_t)Serial_fm.read();
-    mfs_p[2] = (uint8_t)Serial_fm.read();
-    mfs_p[3] = (uint8_t)Serial_fm.read();
-    mfs_p[4] = (uint8_t)Serial_fm.read();
-    mfs_p[5] = (uint8_t)Serial_fm.read();*/
     mfs[0] = (uint8_t)Serial_fm.read();
     mfs[1] = (uint8_t)Serial_fm.read();
     mfs[2] = (uint8_t)Serial_fm.read();
     mfs[3] = (uint8_t)Serial_fm.read();
-    /*Serial.print("read ");
-    Serial.print(mfs[0]);
-    Serial.print("-");
-    Serial.print(mfs[1]);
-    Serial.print("-");
-    Serial.print(mfs[2]);
-    Serial.print("-");
-    Serial.println(mfs[3]);*/
   }
   for (int seikei = 0; seikei <= 3; seikei++)
   {
-    if(mfs[3] == 0xB4){
+    if (mfs[3] == 0xB4)
+    {
       chks = mfs[0] ^ mfs[1];
       if (mfs[2] == chks)
       {
+        master_pod2_1 = mfs[1] & 0x01;             //2-1ポッドを狙う命令
+        master_pod1_1 = mfs[2] >> 7 & 0x01;        //1-1ポッドを狙う命令
+        master_pod3_0 = mfs[2] >> 6 & 0x01;        //3型ポッドを狙う命令
+        master_pod1_2 = mfs[2] >> 5 & 0x01;        //1-2ポッドを狙う命令
+        master_pod2_2 = mfs[2] >> 4 & 0x01;        //2-2ポッドを狙う命令
+        master_pic_order = mfs[2] >> 3 & 0x01;     //回収命令 ハンド
+        master_release_order = mfs[2] >> 2 & 0x01; //解放命令
+        master_prepare_order = mfs[2] >> 1 & 0x01; //射出準備命令　棒
+        master_shot_order = mfs[2] & 0x01;         //射出命令
         success_r = true;
       }
       else
@@ -107,7 +132,7 @@ bool read_mfs()
         success_r = false;
       }
     }
-    else
+    else //並び替え
     {
       mfs_pre = mfs[0];
       for (int nchk = 0; nchk < 3; nchk++)
@@ -115,14 +140,6 @@ bool read_mfs()
         mfs[nchk] = mfs[nchk + 1];
       }
       mfs[3] = mfs_pre;
-      /*Serial.print("roop ");
-      Serial.print(mfs[0]);
-      Serial.print("-");
-      Serial.print(mfs[1]);
-      Serial.print("-");
-      Serial.print(mfs[2]);
-      Serial.print("-");
-      Serial.println(mfs[3]);*/
     }
   }
   return success_r;
@@ -142,190 +159,202 @@ bool write_mts()
 
 void loop() ////////////////////////////////////////////////////////////////////////////
 {
-  //digitalWrite(PIN_LED1, flag_10ms);
+  digitalWrite(PIN_LED1, flag_10ms);
   if (flag_10ms == true)
   {
     digitalWrite(PIN_LED1, 1);
     digitalWrite(PIN_LED3, read_mfs());
     digitalWrite(PIN_LED2, write_mts());
-    if (mfs[0] == master_collection_order)
-    { //回収作業
-      //↓[1]方位角調整
-      azimuth = 3.14; //方位角設定
-      if (encrM2 <= azimuth + 0.15 && encrM2 >= azimuth - 0.15)
-      {
-        flag2 = true;
-      }
-      //↑[1]
-      //↓[2]スライドレール調整
-      if (flag2 == true)
-      {
-        slide = 3.14; //スライドレール調整
-        encrM5 = (ISO::ISOkeisu_read_MTU1(0) / M5ppr) * 6.28;
-        mtspeedM5 = M5pid.getCmd(slide, encrM5, M5max);
-        roboclaw.ForwardBackwardM2(RC2_ad, mtspeedM5); //M5　スライドレール調整　PID角度調整
-
-        digitalWrite(AS1_PIN, 0);
-        digitalWrite(AS2_PIN, 0);
-        digitalWrite(AS3_PIN, 1);
-        digitalWrite(AS4_PIN, 1);
-      }
-      if (encrM5 <= slide + 0.15 && encrM5 >= slide - 0.15)
-      {
-        flag2 = false;
-        flag3 = true;
-      }
-      //↑[2]
-      //↓[3]回収
-      if (flag3 == true)
-      {
-        digitalWrite(AS3_PIN, 0);
-        flag3 = false;
-        flag4 = true;
-      }
-      //↑[3]
-      //↓[4]回収完了
-      if (flag4 == true)
-      {
-        digitalWrite(AS1_PIN, 1);
-        digitalWrite(AS4_PIN, 0);
-        flag4 = false;
-        flag5 = true;
-      }
-      //↑[4]
-    }
-
-    else if (mfs[0] == master_shot_order)
+    //エンコーダー読み取り/////////////////////////////////////////////////
+    encr_slide = ((ISO::ISOkeisu_read_MTU1(0, false) / 1000) * 6.28);
+    //初期化//////////////////////////////////////////////////////////////
+    if (flag0 == true)
     {
-      //発射作業
-      //↓[5]角度計算
-      if (flag5 = true)
+      if (analogRead(KOUDEN) > 100 && flag_slide == false)
       {
-        azimuth = 3.14;
-        shotdeg = 3.14;
-        slide = 3.14;
-        flag5 = false;
-        flag6 = true;
+        roboclaw.ForwardM1(RC2_ad, 20);
       }
-      //↑[5]
-      //↓[6]射角・方位角調整
-      if (flag6 = true)
+      else if (analogRead(KOUDEN) < 100 && flag_slide == false)
+      {
+        flag_slide = true;
+        ISO::ISOkeisu_read_MTU1(0, true);
+      }
+      else if (flag_slide == true)
+      {
+        slide_tgt = -5;
+        if (encr_slide <= slide_tgt + 0.1 && encr_slide >= slide_tgt - 0.1)
+        {
+          digitalWrite(AS4_PIN, 0);
+          digitalWrite(AS3_PIN, 1);
+          flag0 = false;
+          flag1 = true;
+        }
+      }
+    }
+    //手動装填/////////////////////////////////////////////////////////////
+    if (master_pic_order > 0 && flag1 == true)
+    {
+      //shotdeg_tgt = 1.60; //要変更
+      digitalWrite(AS1_PIN, 1);
+      digitalWrite(AS4_PIN,0 );
+      flag1 = false;
+      flag2 = true;
+    }
+    //発射////////////////////////////////////////////////////////////////
+    if (master_shot_order > 0 && flag2 == true)
+    {
+      shotdeg_tgt = 1.60;
+      azimuth_tgt = 3.14;
+      slide_tgt = 25;
+      if (encr_slide <= slide_tgt + 0.1 && encr_slide >= slide_tgt - 0.1 && encr_azimuth <= azimuth_tgt + 0.1 && encr_azimuth >= azimuth_tgt - 0.1 && encr_shotdeg <= shotdeg_tgt + 0.1 && encr_shotdeg >= shotdeg_tgt - 0.1)
       {
         digitalWrite(AS5_PIN, 1);
-        if (encrM2 <= azimuth + 0.15 && encrM2 >= azimuth - 0.15 && encrM1 <= shotdeg + 0.15 && encrM1 >= shotdeg - 0.15)
-        {
-          flag6 = false;
-          flag7 = true;
-        }
       }
-      //↑[6]
-      //↓[7]スライドレール作動
-      if (flag7 == true)
-      {
-        digitalWrite(AS3_PIN, 0);
-        encrM5 = (ISO::ISOkeisu_read_MTU1(0) / M5ppr) * 6.28;
-        mtspeedM5 = M5pid.getCmd(slide, encrM5, M5max);
-        roboclaw.ForwardBackwardM2(RC2_ad, mtspeedM5); //M5　スライドレール調整　PID角度調整
-
-        roboclaw.ForwardBackwardM1(RC1_ad, mtspeed_shot); //M3発射　PID速度制御　計算した結果から行う
-        roboclaw.ForwardBackwardM2(RC1_ad, mtspeed_shot); //M4発射　PID速度制御　計算した結果から行う
-        if (encrM5 <= slide + 0.15 && encrM5 >= slide - 0.15)
-        {
-          flag7 = false;
-          flag8 = true;
-        }
-      }
-      //↑[7]
-      //↓[8]発射
-      if (flag8 == true)
-      {
-        digitalWrite(AS5_PIN, 0);
-        flag8 = false;
-      }
-      //↑[8]
+      count_shot++;
     }
-    else if (mfs[0] == master_initialize_order)
-    { //初期化
-      //↓[9]初期化
-      digitalWrite(AS1_PIN, 1);
+    if (count_shot >= 5)
+    {
+      flag2 = false;
+      flag3 = true;
+    }
+    //回収////////////////////////////////////////////////////////////////
+    if (master_pic_order > 0 && flag4 == true)
+    {
+      shotdeg_tgt = 0.5;
       digitalWrite(AS2_PIN, 0);
-      //↑[9]
+      digitalWrite(AS1_PIN, 0);
+      digitalWrite(AS4_PIN, 1);
+      flag4 = false;
+      flag5 = true;
     }
-    AE1 = AbsoluteENC.AMT203_read1(0); //AE2読み取り
-    encsabn1 = AE1 - encpast1;
-    if (encsabn1 > 3500)
+    if (master_pic_order > 0 && flag5 == true)
     {
-      encsabn1 = encsabn1 - 4095;
+      digitalWrite(AS3_PIN, 1);
+      flag5 = false;
+      flag6 = true;
     }
-    if (encsabn1 < -3500)
+    if (master_pic_order > 0 && flag6 == true)
     {
-      encsabn1 = encsabn1 + 4095;
+      digitalWrite(AS4_PIN, 0);
     }
-    encval1 += encsabn1;
-    encpast1 = AE1;
-    encrM1 = (encval1 / 4095) * 6.28;
-    mtspeedM1 = M1pid.getCmd(shotdeg, encrM1, M1max);
-    roboclaw.ForwardBackwardM1(RC2_ad, mtspeedM1); //M1　PID角度制御をAE1で決めた角度に行う
+    //PID常時動作////////////////////////////////////////////////////////
+    enc_azimuth = AbsoluteENC.AMT203_read1(0);
+    encsabn_azimuth = enc_azimuth - encpast_azimuth;
+    if (encsabn_azimuth > 3500)
+    {
+      encsabn_azimuth = encsabn_azimuth - 4095;
+    }
+    if (encsabn_azimuth < -3500)
+    {
+      encsabn_azimuth = encsabn_azimuth + 4095;
+    }
+    encval_azimuth += encsabn_azimuth;
+    encpast_azimuth = enc_azimuth;
+    encr_azimuth = ((encval_azimuth / 4095) * 6.28);
+    speed_azimuth = pid_azimuth.getCmd(azimuth_tgt, encr_azimuth, 20);
+    /*if (speed_azimuth >= 0)
+  {
+    roboclaw.BackwardM1(RC1_ad, speed_azimuth);
+  }
+  else if (speed_azimuth < 0)
+  {
+    speed_azimuth = speed_azimuth * (-1);
+    roboclaw.ForwardM1(RC1_ad, speed_azimuth);
+  }*/
 
-    AE2 = AbsoluteENC.AMT203_read2(0); //AE2読み取り
-    encsabn2 = AE2 - encpast2;
-    if (encsabn2 > 3500)
+    enc_shotdeg = AbsoluteENC.AMT203_read2(0);
+    encsabn_shotdeg = enc_shotdeg - encpast_shotdeg;
+    if (encsabn_shotdeg > 3500)
     {
-      encsabn2 = encsabn2 - 4095;
+      encsabn_shotdeg = encsabn_shotdeg - 4095;
     }
-    if (encsabn2 < -3500)
+    if (encsabn_shotdeg < -3500)
     {
-      encsabn2 = encsabn2 + 4095;
+      encsabn_shotdeg = encsabn_shotdeg + 4095;
     }
-    encval2 += encsabn2;
-    encpast2 = AE2;
-    encrM2 = (encval2 / 4095) * 6.28;
-    mtspeedM2 = M2pid.getCmd(azimuth, encrM2, M2max);
-    roboclaw.ForwardBackwardM2(RC3_ad, mtspeedM2); //M2　PID角度制御をAE2で決めた角度に行う
+    encval_shotdeg += encsabn_shotdeg;
+    encpast_shotdeg = enc_shotdeg;
+    encr_shotdeg = ((encval_shotdeg / 4095) * 6.28);
+    speed_shotdeg = pid_shotdeg.getCmd(shotdeg_tgt, encr_shotdeg, 20);
+    speed_shotdeg = min(speed_shotdeg, 5);
+    if (speed_shotdeg >= 0)
+    {
+      roboclaw.BackwardM2(RC1_ad, speed_shotdeg);
+    }
+    else if (speed_shotdeg < 0)
+    {
+      speed_shotdeg = speed_shotdeg * (-1);
+      roboclaw.ForwardM2(RC1_ad, speed_shotdeg);
+    }
 
-    //安全停止
-    /*digitalWrite(AS1_PIN,0);
-    digitalWrite(AS2_PIN,1);*/
-
+    if (flag_slide == 1)
+    {
+      speed_slide = pid_slide.getCmd(slide_tgt, encr_slide, 20);
+      if (speed_slide >= 0)
+      {
+        roboclaw.ForwardM1(RC2_ad, speed_slide);
+      }
+      else if (speed_slide < 0)
+      {
+        speed_slide = speed_slide * (-1);
+        roboclaw.BackwardM1(RC2_ad, speed_slide);
+      }
+    }
+    /////////////////////////////////////////////////////////////////////
+    Serial.print("tuusin-");
     if (read_mfs() == true)
     {
-      Serial.print("success");
+      Serial.print("success ");
     }
     else if (read_mfs() == false)
     {
-      Serial.print("failure");
+      Serial.print("failure ");
     }
-    /*Serial.print(mfs_p[0]);
-    Serial.print("-");
-    Serial.print(mfs_p[1]);
-    Serial.print("-");
-    Serial.print(mfs_p[2]);
-    Serial.print("-");
-    Serial.print(mfs_p[3]);
-    Serial.print("-");
-    Serial.print(mfs_p[4]);
-    Serial.print("-");
-    Serial.print(mfs_p[5]);
-    Serial.print("-");
-    Serial.print(mfs[0]);
-    Serial.print("-");
-    Serial.print(mfs[1]);
-    Serial.print("-");
-    Serial.print(mfs[2]);
-    Serial.print("-");
-    Serial.print(chks);
-    Serial.print("-");
-    Serial.println(mfs_n);*/
-    Serial.print(mfs[0]);
-    Serial.print("-");
-    Serial.print(mfs[1]);
-    Serial.print("-");
-    Serial.print(mfs[2]);
-    Serial.print("-");
-    Serial.print(mfs[3]);
-    Serial.print("-");
-    Serial.println(chks);
-
+    Serial.print(" flag0 ");
+    Serial.print(flag0);
+    Serial.print(" flag1 ");
+    Serial.print(flag1);
+    /*Serial.print(" flag2 ");
+    Serial.print(flag2);
+    Serial.print(" flag3 ");
+    Serial.print(flag3);
+    Serial.print(" flag4 ");
+    Serial.print(flag4);
+    Serial.print(" flag5 ");
+    Serial.print(flag5);
+    Serial.print(" flag6 ");
+    Serial.print(flag6);*/
+    Serial.print(" flag_slide ");
+    Serial.print(flag_slide);
+    Serial.print(" azimuth_tgt ");
+    Serial.print(azimuth_tgt);
+    Serial.print(" shotdeg_tgt ");
+    Serial.print(shotdeg_tgt);
+    Serial.print(" slide_tgt ");
+    Serial.print(slide_tgt);
+    Serial.print(" KOUDEN ");
+    Serial.print(analogRead(KOUDEN));
+    Serial.print(" encr_slide ");
+    Serial.print(encr_slide);
+    Serial.print(" encr_shotdeg ");
+    Serial.print(encr_shotdeg);
+    Serial.print(" encr_azimuth ");
+    Serial.print(encr_azimuth);
+    Serial.print(" speed_slide ");
+    Serial.println(speed_slide);
+    /*Serial.print(" master_pic_order ");
+  Serial.print(master_pic_order);
+  Serial.print(" master_release_order ");
+  Serial.print(master_release_order);
+  Serial.print(" master_prepare_order ");
+  Serial.print(master_prepare_order);
+  Serial.print(" master_shot_order ");
+  Serial.println(master_shot_order);*/
+    if (flag_1s)
+    {
+      digitalWrite(A0, !digitalRead(A0));
+      flag_1s = false;
+    }
     flag_10ms = false;
   }
   digitalWrite(PIN_LED1, 0);

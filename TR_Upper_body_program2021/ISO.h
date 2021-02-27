@@ -16,10 +16,10 @@ namespace ISO{
      void ISOkeisu_MTU2(int ppr);
      void ISOkeisu_TPU1(int ppr);
      void ISOkeisu_TPU2(int ppr);
-     double  ISOkeisu_read_MTU1(int mode);
-     double  ISOkeisu_read_MTU2(int mode);
-     double  ISOkeisu_read_TPU1(int mode);
-     double  ISOkeisu_read_TPU2(int mode);
+     double  ISOkeisu_read_MTU1(int mode,bool zero);
+     double  ISOkeisu_read_MTU2(int mode,bool zero);
+     double  ISOkeisu_read_TPU1(int mode,bool zero);
+     double  ISOkeisu_read_TPU2(int mode,bool zero);
 
     //private:
 }
