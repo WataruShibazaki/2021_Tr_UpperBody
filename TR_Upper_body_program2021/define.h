@@ -23,6 +23,12 @@
 #define AS7_PIN 45
 #define AS8_PIN 44
 
+#define boardLED1 A0
+#define boardLED2 A0
+
+#define S1 55
+#define S2 54
+
 #define LED_status 43
 
 #define M5ppr 1000
