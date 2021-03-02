@@ -24,7 +24,7 @@
 #define AS8_PIN 44
 
 #define boardLED1 A0
-#define boardLED2 A0
+#define boardLED2 A1
 
 #define S1 55
 #define S2 54
