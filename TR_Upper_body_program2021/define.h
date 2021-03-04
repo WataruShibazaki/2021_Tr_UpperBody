@@ -26,6 +26,7 @@
 #define boardLED1 A0
 #define boardLED2 A1
 
+#define boardSW PIN_SW
 #define S1 55
 #define S2 54
 
