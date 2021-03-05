@@ -16,11 +16,12 @@ uint8_t mfs_pre;  //成型用の箱
 uint8_t chks;     //チェックサム
 int master_pod1_1 = 0, master_pod1_2 = 0, master_pod2_1 = 0, master_pod2_2 = 0, master_pod3_0 = 0;
 int master_pic_order = 0, master_release_order = 0, master_prepare_order = 0, master_shot_order = 0;
-bool flag_10ms, flag_500ms, flag_100ms;
+bool flag_10ms, flag_SWs, flag_100ms,flag_shotsec;
 bool flag0 = true, flag1 = false, flag2 = false, flag3 = false, flag4 = false;
 bool flag5 = false, flag6 = false, flag7 = false, flag8 = false, flag9 = false;
-bool flag_slide = false;
-int count10ms = 0, count500ms = 0, count100ms = 0, count_shot = 0;
+bool AS1 = false ,AS2 = false ,AS3 = false ,AS4 = false ,AS5 = false ;
+bool flag_slide = false,flag_shot = false;
+int count10ms = 0, count_SWs = 0, count100ms = 0, count_shot = 0,count_shotsec;
 int AE1 = 0, AE2 = 0; //アブソリュートエンコーダーの値
 int M1max, M2max, M5max;
 double azimuth_tgt, shotdeg_tgt, slide_tgt;                                                        //方位角,射角(0~1.70[rad](0~100°)),スライドレール
@@ -29,6 +30,10 @@ double speed_shotdeg, enc_shotdeg, encpast_shotdeg, encsabn_shotdeg, encval_shot
 double speed_slide, encr_slide, shotdeg_lowlimit = 0;
 double shotkp, shotki, shotkd; //スライドレール
 double speed_shot;
+double shot_azimuth[10] = {2.552,2.177,2.479,2.107,2.324,1.013,0.642,0.637,1.050,0.804};
+double shot_shotdeg[10] = {1.6,1.5,1.6,1.5,1.6,1.5,1.6,1.5,1.6,1.5};
+double shot_slide[10] = {-3,-27,-54,-72,-103,-3,-27,-54,-72,-103};
+double shot_roller[10] = {10,10,10,10,10,10,10,10,10,10};
 
 RoboClaw roboclaw(&Serial1, 10000);
 AMT203read AbsoluteENC(true);
@@ -40,6 +45,8 @@ void timer()
 {
   count10ms++;
   count100ms++;
+  count_SWs++;
+  count_shotsec++;
   if (count10ms >= 1)
   {
     flag_10ms = true;
@@ -51,10 +58,15 @@ void timer()
     flag_100ms = true;
     count100ms = 0;
   }
-  if (count500ms >= 50)
+  if (count_SWs >= 20)
   {
-    flag_500ms = true;
-    count500ms = 0;
+    flag_SWs = true;
+    count_SWs = 0;
+  }
+  if (count_shotsec >= 50)
+  {
+    flag_shotsec = true;
+    count_shotsec = 0;
   }
   /*else
   {
@@ -211,6 +223,8 @@ void loop() ////////////////////////////////////////////////////////////////////
     if (flag0 == true)
     {
       //shotdeg_lowlimit = 0; //10
+      /*flag0=false;
+      flag2=true;*/
       shotdeg_lowlimit = 10;
       shotkp = 45;
       shotki = 7;
@@ -228,10 +242,9 @@ void loop() ////////////////////////////////////////////////////////////////////
       else if (flag_slide == true)
       {
         slide_tgt = -60;
-        if (encr_slide <= slide_tgt + 0.1 && encr_slide >= slide_tgt - 0.1)
+        if (encr_slide <= slide_tgt + 0.15 && encr_slide >= slide_tgt - 0.15)
         {
-          digitalWrite(AS4_PIN, 0);
-          digitalWrite(AS3_PIN, 1);
+          AS3 = true;
           flag0 = false;
           flag1 = true;
         }
@@ -246,88 +259,96 @@ void loop() ////////////////////////////////////////////////////////////////////
       shotkp = 0;
       shotki = 0;
       shotkd = 0;
-      digitalWrite(AS1_PIN, 1);
-      digitalWrite(AS4_PIN, 0);
-      slide_tgt = -25;
+      AS1 = true;
       flag1 = false;
       flag2 = true;
     }
     //発射////////////////////////////////////////////////////////////////
     //if (master_shot_order > 0 && flag2 == true)
-    if (digitalRead(S2) < 1 && flag2 == true)
+    if (digitalRead(S2)<1&&flag2 == true && flag_shot == false)
     {
       shotkp = 90;
       shotki = 5;
       shotkd = 5;
-      shotdeg_tgt = 1.50;
-      azimuth_tgt = 0.5;
-      digitalWrite(AS2_PIN, 1);
+      azimuth_tgt = shot_azimuth[count_shot];
+      shotdeg_tgt = shot_shotdeg[count_shot];
+      slide_tgt = shot_slide[count_shot];
+      //roboclaw.ForwardM1(RC3_ad, speed_roller[count_shot]);
+      //roboclaw.ForwardM2(RC3_ad, speed_roller[count_shot]);
       if (encr_slide <= slide_tgt + 0.3 && encr_slide >= slide_tgt - 0.3 && encr_azimuth <= azimuth_tgt + 0.1 && encr_azimuth >= azimuth_tgt - 0.1 && encr_shotdeg <= shotdeg_tgt + 0.1 && encr_shotdeg >= shotdeg_tgt - 0.1)
       {
-        digitalWrite(AS5_PIN, 1);
-        delay(500);
+        flag_shot = true;
+        flag2=false;
+        flag3=true;
+        AS2 = true;
+        AS5 = true;
         count_shot++;
-        digitalWrite(AS5_PIN, 0);
-        slide_tgt -= 10;
       }
-      if (count_shot >= 5)
+    }
+    if(digitalRead(S2)<1&&flag3==true&&flag_shot == true&&flag_shotsec==true)
+    {
+      AS5= false;
+      count_shotsec = 0;
+      flag_shotsec = false;
+      flag_shot = false;
+    }
+    if(flag3==true&&flag_shot == false&&flag_shotsec==true)
+    {
+      AS5 = true;
+      azimuth_tgt = shot_azimuth[count_shot];
+      shotdeg_tgt = shot_shotdeg[count_shot];
+      slide_tgt = shot_slide[count_shot];
+      //roboclaw.ForwardM1(RC3_ad, speed_roller[count_shot]);
+      //roboclaw.ForwardM2(RC3_ad, speed_roller[count_shot]);
+      if (encr_slide <= slide_tgt + 0.3 && encr_slide >= slide_tgt - 0.3 && encr_azimuth <= azimuth_tgt + 0.1 && encr_azimuth >= azimuth_tgt - 0.1 && encr_shotdeg <= shotdeg_tgt + 0.1 && encr_shotdeg >= shotdeg_tgt - 0.1)
       {
+        AS2 = true;
+        AS5 = true;
+        count_shot++;
+        flag_shot = true;
+        if (count_shot >= 6)
+        {
         shotdeg_lowlimit = 10;
         shotkp = 0;
         shotki = 0;
         shotkd = 0;
-        slide_tgt = -3;
-        flag2 = false;
-        flag3 = true;
+        slide_tgt = -60;
+        azimuth_tgt = 0;
+        flag3 = false;
+        flag4 = true;
+        }
       }
     }
     //回収////////////////////////////////////////////////////////////////
     //if (master_pic_order > 0 && flag4 == true)
-    if (digitalRead(S1) < 1 && flag3 == true)
+    if (digitalRead(S1) < 1 && flag4 == true)
     {
       shotdeg_lowlimit = 10;
       shotkp = 45;
       shotki = 7;
       shotkd = 7;
       shotdeg_tgt = 0.5;
-      digitalWrite(AS2_PIN, 0);
-      digitalWrite(AS1_PIN, 0);
-      flag3 = false;
-      flag4 = true;
+      AS2 = false;
+      AS1 = false;
+      AS4 = false;
+      count_SWs = 0;
+      flag_SWs = false;
+      flag4 = false;
+      flag5 = true;
     }
     //if (master_pic_order > 0 && flag5 == true)
-    if (digitalRead(S2) < 1 && flag4 == true)
+    if (digitalRead(S2) < 1 && flag5 == true && flag_SWs == true)
     {
-      digitalWrite(AS3_PIN, 1);
-      count500ms++;
-      if (flag_500ms == true)
-      {
-        flag4 = false;
-        flag5 = true;
-      }
-    }
-    //if (master_pic_order > 0 && flag6 == true)
-    if (digitalRead(S2) < 1 && flag5 == true)
-    {
-      digitalWrite(AS3_PIN, 0);
-      digitalWrite(AS4_PIN, 0);
-      count500ms++;
-      if (flag_500ms == true)
-      {
-        flag4 = true;
-        flag5 = false;
-      }
+      AS3 = !AS3;
+      count_SWs = 0;
+      flag_SWs = false;
     }
     //if(master_prepare_order > 0 && flag5 == true)
-    if (digitalRead(S1) < 1 && flag5 == true)
+    if (digitalRead(S1) < 1 && flag5 == true && flag_SWs == true)
     {
-      digitalWrite(AS4_PIN, 1);
-      count500ms++;
-      if (flag_500ms == true)
-      {
-        flag4 = false;
-        flag5 = true;
-      }
+      AS4 = !AS4;
+      count_SWs = 0;
+      flag_SWs = false;
     }
     //PID常時動作////////////////////////////////////////////////////////
     if (speed_azimuth >= 0)
@@ -362,6 +383,11 @@ void loop() ////////////////////////////////////////////////////////////////////
         roboclaw.BackwardM1(RC2_ad, speed_slide);
       }
     }
+    digitalWrite(AS1_PIN,AS1);
+    digitalWrite(AS2_PIN,AS2);
+    digitalWrite(AS3_PIN,AS3);
+    digitalWrite(AS4_PIN,AS4);
+    digitalWrite(AS5_PIN,AS5);
     //エンコーダーリセット/////////////////////////////////////////////////
     if (digitalRead(boardSW) < 1)
     {
@@ -384,32 +410,31 @@ void loop() ////////////////////////////////////////////////////////////////////
     {
       Serial.print("failure ");
     }
-    Serial.print(" flag0 ");
+    /*Serial.print(" flag0 ");
     Serial.print(flag0);
     Serial.print(" flag_slide ");
     Serial.print(flag_slide);
     Serial.print(" flag1 ");
-    Serial.print(flag1);
+    Serial.print(flag1);*/
     Serial.print(" flag2 ");
     Serial.print(flag2);
     Serial.print(" flag3 ");
     Serial.print(flag3);
     Serial.print(" flag4 ");
     Serial.print(flag4);
-    Serial.print(" flag_500ms ")
-    Serial.print(flag_500ms);
-    Serial.print(" flag5 ");
+    /*Serial.print(" flag5 ");
     Serial.print(flag5);
     Serial.print(" flag6 ");
-    Serial.println(flag6);
-    /*Serial.print(" azimuth_tgt ");
+    Serial.println(flag6);*/
+    
+    Serial.print(" azimuth_tgt ");
     Serial.print(azimuth_tgt);
     Serial.print(" shotdeg_tgt ");
     Serial.print(shotdeg_tgt);
     Serial.print(" slide_tgt ");
     Serial.print(slide_tgt);
-    Serial.print(" KOUDEN ");
-    Serial.print(analogRead(KOUDEN));
+    //Serial.print(" KOUDEN ");
+    //Serial.print(analogRead(KOUDEN));
     Serial.print(" encr_slide ");
     Serial.print(encr_slide);
     Serial.print(" encr_shotdeg ");
@@ -421,7 +446,7 @@ void loop() ////////////////////////////////////////////////////////////////////
     Serial.print(" speed_shotdeg ");
     Serial.print(speed_shotdeg);
     Serial.print(" speed_azimuth ");
-    Serial.println(speed_azimuth);*/
+    Serial.println(speed_azimuth);
     /*Serial.print(" master_pic_order ");
   Serial.print(master_pic_order);
   Serial.print(" master_release_order ");
@@ -436,7 +461,6 @@ void loop() ////////////////////////////////////////////////////////////////////
       flag_100ms = false;
     }
     flag_10ms = false;
-    flag_500ms = false;
   }
   digitalWrite(PIN_LED1, 0);
 }
