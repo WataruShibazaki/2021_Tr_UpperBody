@@ -33,5 +33,8 @@
 #define LED_status 43
 
 #define M5ppr 1000
+#define rollerppr 200
+#define rollerR 0.0375
+#define PI 3.141592
 
 #endif
