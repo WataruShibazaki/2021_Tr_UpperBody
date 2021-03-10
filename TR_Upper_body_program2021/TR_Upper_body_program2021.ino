@@ -91,8 +91,7 @@ void timer()
   encval_azimuth += encsabn_azimuth;
   encpast_azimuth = enc_azimuth;
   encr_azimuth = ((encval_azimuth / 4095) * 6.28);
-  //encr_azimuth = PIDFilter_azimuth.LowPassFilter(encr_azimuth);
-  speed_azimuth = pid_azimuth.getCmd(azimuth_tgt, encr_azimuth, 15);
+  speed_azimuth = PIDFilter_azimuth.LowPassFilter(pid_azimuth.getCmd(azimuth_tgt, encr_azimuth, 15));
 
   pid_shotdeg.setPara(shotkp, shotki, shotkd);
   enc_shotdeg = AbsoluteENC.AMT203_read2(0);
@@ -108,8 +107,7 @@ void timer()
   encval_shotdeg += encsabn_shotdeg;
   encpast_shotdeg = enc_shotdeg;
   encr_shotdeg = ((encval_shotdeg / 4095) * 6.28);
-  //encr_shotdeg = PIDFilter_shotdeg.LowPassFilter(encr_shotdeg);
-  speed_shotdeg = pid_shotdeg.getCmd(shotdeg_tgt, encr_shotdeg, 10); //20
+  speed_shotdeg = PIDFilter_shotdeg.LowPassFilter(pid_shotdeg.getCmd(shotdeg_tgt, encr_shotdeg, 10)); //20
   speed_shotdeg = min(speed_shotdeg, shotdeg_lowlimit);
 
   speed_slide = pid_slide.getCmd(slide_tgt, encr_slide, 20);
@@ -132,8 +130,8 @@ void setup()
   //pid_shotdeg.setPara(90, 5, 5);
   //pid_shotdeg.setPara(45,7,7);
 
-  PIDFilter_azimuth.setLowPassPara(0.005, 0.0);
-  PIDFilter_shotdeg.setLowPassPara(0.005, 0.0);
+  PIDFilter_azimuth.setLowPassPara(0.1, 0.0);
+  PIDFilter_shotdeg.setLowPassPara(0.1, 0.0);
   PIDFilter_slide.setLowPassPara(0.1,0.0);
 
   pinMode(PIN_LED3, OUTPUT);
@@ -236,9 +234,6 @@ void loop() ////////////////////////////////////////////////////////////////////
     //初期化//////////////////////////////////////////////////////////////
     if (flag0 == true)
     {
-      //shotdeg_lowlimit = 0; //10
-      /*flag0=false;
-      flag2=true;*/
       shotdeg_lowlimit = 10;
       shotkp = 45;
       shotki = 7;
@@ -305,7 +300,7 @@ void loop() ////////////////////////////////////////////////////////////////////
       flag_shotsec = false;
       flag_shot = false;
     }
-    if (flag3 == true && flag_shot = false && flag_shotsec == true)
+    if (flag3 == true && flag_shot == false && flag_shotsec == true)
     {
       AS5 = true;
       azimuth_tgt = shot_azimuth[count_shot];
@@ -425,7 +420,7 @@ void loop() ////////////////////////////////////////////////////////////////////
     {
       Serial.print("failure ");
     }
-    Serial.print(" flag0 ");
+    /*Serial.print(" flag0 ");
     Serial.print(flag0);
     Serial.print(" flag_slide ");
     Serial.print(flag_slide);
@@ -438,18 +433,18 @@ void loop() ////////////////////////////////////////////////////////////////////
     Serial.print(" flag4 ");
     Serial.print(flag4);
     Serial.print(" flag_shot ");
-    Serial.print(flag_shot);
+    Serial.print(flag_shot);*/
     /*Serial.print(" flag5 ");
     Serial.print(flag5);
     Serial.print(" flag6 ");
     Serial.println(flag6);*/
 
-    /*Serial.print(" azimuth_tgt ");
+    Serial.print(" azimuth_tgt ");
     Serial.print(azimuth_tgt);
     Serial.print(" shotdeg_tgt ");
     Serial.print(shotdeg_tgt);
     Serial.print(" slide_tgt ");
-    Serial.print(slide_tgt);*/
+    Serial.print(slide_tgt);
     //Serial.print(" KOUDEN ");
     //Serial.print(analogRead(KOUDEN));
     Serial.print(" encr_slide ");
@@ -457,14 +452,14 @@ void loop() ////////////////////////////////////////////////////////////////////
     Serial.print(" encr_shotdeg ");
     Serial.print(encr_shotdeg);
     Serial.print(" encr_azimuth ");
-    Serial.println(encr_azimuth);
-    /*Serial.print(" speed_slide ");
+    Serial.print(encr_azimuth);
+    Serial.print(" speed_slide ");
     Serial.print(speed_slide);
     Serial.print(" speed_shotdeg ");
     Serial.print(speed_shotdeg);
     Serial.print(" speed_azimuth ");
     Serial.println(speed_azimuth);
-    Serial.print(" master_pic_order ");
+    /*Serial.print(" master_pic_order ");
   Serial.print(master_pic_order);
   Serial.print(" master_release_order ");
   Serial.print(master_release_order);
