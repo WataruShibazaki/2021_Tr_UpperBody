@@ -32,9 +32,11 @@ double speed_slide, encr_slide, shotdeg_lowlimit = 0;
 double shotkp, shotki, shotkd; //スライドレール
 double speed_shot;
 double shot_azimuth[10] = {2.552, 2.177, 2.479, 2.107, 2.324, 1.013, 0.642, 0.637, 1.050, 0.804};
-double shot_shotdeg[10] = {1.6, 1.5, 1.6, 1.5, 1.6, 1.5, 1.6, 1.5, 1.6, 1.5};
-double shot_slide[10] = {-3, -27, -54, -72, -103, -3, -27, -54, -72, -103};
-double shot_roller[10] = {3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
+//double shot_shotdeg[10] = {1.6, 1.5, 1.6, 1.5, 1.6, 1.5, 1.6, 1.5, 1.6, 1.5};
+double shot_shotdeg[10] = {1.5, 1.4, 1.3, 1.5, 1.4, 1.3, 1.5, 1.4, 1.3, 1.5};
+double shot_slide[10] = {-4.5, -30, -55.5, -79.5, -104, -4.5, -30, -55.5, -79.5, -104};
+//double shot_roller[10] = {6, 6, 6, 6, 6, 6, 6, 6, 6, 6};
+double shot_roller[10] = {1, 0.5, 1, 0.5, 1, 0.5, 1, 0.5, 1, 0.5};
 
 RoboClaw roboclaw(&Serial1, 10000);
 AMT203read AbsoluteENC(true);
@@ -91,7 +93,9 @@ void timer()
   encval_azimuth += encsabn_azimuth;
   encpast_azimuth = enc_azimuth;
   encr_azimuth = ((encval_azimuth / 4095) * 6.28);
-  speed_azimuth = PIDFilter_azimuth.LowPassFilter(pid_azimuth.getCmd(azimuth_tgt, encr_azimuth, 15));
+  //encr_azimuth = PIDFilter_azimuth.LowPassFilter(encr_azimuth);
+  speed_azimuth = pid_azimuth.getCmd(azimuth_tgt, encr_azimuth, 15);
+  speed_azimuth = PIDFilter_azimuth.LowPassFilter(speed_azimuth);
 
   pid_shotdeg.setPara(shotkp, shotki, shotkd);
   enc_shotdeg = AbsoluteENC.AMT203_read2(0);
@@ -107,12 +111,17 @@ void timer()
   encval_shotdeg += encsabn_shotdeg;
   encpast_shotdeg = enc_shotdeg;
   encr_shotdeg = ((encval_shotdeg / 4095) * 6.28);
-  speed_shotdeg = PIDFilter_shotdeg.LowPassFilter(pid_shotdeg.getCmd(shotdeg_tgt, encr_shotdeg, 10)); //20
+  //encr_shotdeg = PIDFilter_shotdeg.LowPassFilter(encr_shotdeg);
+  speed_shotdeg = pid_shotdeg.getCmd(shotdeg_tgt, encr_shotdeg, 10); //20
   speed_shotdeg = min(speed_shotdeg, shotdeg_lowlimit);
+  speed_shotdeg = PIDFilter_shotdeg.LowPassFilter(speed_shotdeg);
 
   speed_slide = pid_slide.getCmd(slide_tgt, encr_slide, 20);
 
-  speed_shot = ((roller_tgt / rollerR) * rollerppr) / 2 * PI;
+  speed_shot = ((roller_tgt / rollerR) * rollerppr) / (2 * PI);
+  ///////////////////////////////////////////////////////////////////////////////
+  digitalWrite(PIN_LED3, read_mfs());
+  digitalWrite(PIN_LED2, write_mts());
 }
 
 void setup()
@@ -130,9 +139,9 @@ void setup()
   //pid_shotdeg.setPara(90, 5, 5);
   //pid_shotdeg.setPara(45,7,7);
 
-  PIDFilter_azimuth.setLowPassPara(0.1, 0.0);
-  PIDFilter_shotdeg.setLowPassPara(0.1, 0.0);
-  PIDFilter_slide.setLowPassPara(0.1,0.0);
+  PIDFilter_azimuth.setLowPassPara(0.005, 0.0);
+  PIDFilter_shotdeg.setLowPassPara(0.005, 0.0);
+  PIDFilter_slide.setLowPassPara(0.1, 0.0);
 
   pinMode(PIN_LED3, OUTPUT);
   pinMode(PIN_LED2, OUTPUT);
@@ -157,7 +166,7 @@ void setup()
   ISO::ISOkeisu_MTU1(M5ppr); //M5
   ISO::ISOkeisu_MTU2(400);
   digitalWrite(boardLED2, 1);
-  shotdeg_tgt = 0.5;
+  shotdeg_tgt = 1.7; //回収=0.5
   azimuth_tgt = 0;
   enc_azimuth = AbsoluteENC.AMT203_read1(0);
   /*if(enc_azimuth > 2000){
@@ -227,13 +236,12 @@ void loop() ////////////////////////////////////////////////////////////////////
   if (flag_10ms == true)
   {
     digitalWrite(PIN_LED1, !digitalRead(PIN_LED1));
-    digitalWrite(PIN_LED3, read_mfs());
-    digitalWrite(PIN_LED2, write_mts());
     //エンコーダー読み取り/////////////////////////////////////////////////
     encr_slide = (ISO::ISOkeisu_read_MTU1(0, false) / 1000) * 6.28;
     //初期化//////////////////////////////////////////////////////////////
     if (flag0 == true)
     {
+      //shotdeg_lowlimit = 0; //10
       shotdeg_lowlimit = 10;
       shotkp = 45;
       shotki = 7;
@@ -268,13 +276,13 @@ void loop() ////////////////////////////////////////////////////////////////////
       shotkp = 0;
       shotki = 0;
       shotkd = 0;
-      AS1 = true;
+      AS1 = false;
       flag1 = false;
       flag2 = true;
     }
     //発射////////////////////////////////////////////////////////////////
     //if (master_shot_order > 0 && flag2 == true)
-    if (digitalRead(S2) < 1 && flag2 == true && flag_shot == false)
+    if (digitalRead(S2) < 1 && flag2 == true && flag_shot == false && count_shot == 0)
     {
       shotkp = 90;
       shotki = 5;
@@ -283,17 +291,17 @@ void loop() ////////////////////////////////////////////////////////////////////
       shotdeg_tgt = shot_shotdeg[count_shot];
       slide_tgt = shot_slide[count_shot];
       roller_tgt = shot_roller[count_shot];
-      if (encr_slide <= slide_tgt + 0.3 && encr_slide >= slide_tgt - 0.3 && encr_azimuth <= azimuth_tgt + 0.1 && encr_azimuth >= azimuth_tgt - 0.1 && encr_shotdeg <= shotdeg_tgt + 0.1 && encr_shotdeg >= shotdeg_tgt - 0.1)
-      {
-        AS2 = true;
-        AS5 = true;
-        flag_shot = true;
-        flag2 = false;
-        flag3 = true;;
-        count_shot++;
-      }
     }
-    if (digitalRead(S2) < 1 && flag3 == true && flag_shot == true && flag_shotsec == true)
+    if (flag2 == true && encr_slide <= slide_tgt + 0.3 && encr_slide >= slide_tgt - 0.3 && encr_azimuth <= azimuth_tgt + 0.1 && encr_azimuth >= azimuth_tgt - 0.1 && encr_shotdeg <= shotdeg_tgt + 0.1 && encr_shotdeg >= shotdeg_tgt - 0.1)
+    {
+      AS2 = true;
+      AS5 = true;
+      flag_shot = true;
+      flag2 = false;
+      flag3 = true;
+      count_shot++;
+    }
+    if (digitalRead(S2) < 1 && flag3 == true && flag_shot == true && flag_shotsec == true && count_shot > 0)
     {
       AS5 = false;
       count_shotsec = 0;
@@ -306,6 +314,7 @@ void loop() ////////////////////////////////////////////////////////////////////
       azimuth_tgt = shot_azimuth[count_shot];
       shotdeg_tgt = shot_shotdeg[count_shot];
       slide_tgt = shot_slide[count_shot];
+      roller_tgt = shot_roller[count_shot];
       if (encr_slide <= slide_tgt + 0.3 && encr_slide >= slide_tgt - 0.3 && encr_azimuth <= azimuth_tgt + 0.1 && encr_azimuth >= azimuth_tgt - 0.1 && encr_shotdeg <= shotdeg_tgt + 0.1 && encr_shotdeg >= shotdeg_tgt - 0.1)
       {
         AS2 = true;
@@ -323,6 +332,8 @@ void loop() ////////////////////////////////////////////////////////////////////
           roller_tgt = 0;
           flag3 = false;
           flag4 = true;
+          AS5 = false;
+          AS2 = false;
         }
       }
     }
@@ -336,7 +347,7 @@ void loop() ////////////////////////////////////////////////////////////////////
       shotkd = 7;
       shotdeg_tgt = 0.5;
       AS2 = false;
-      AS1 = false;
+      AS1 = true;
       AS4 = false;
       count_SWs = 0;
       flag_SWs = false;
@@ -420,7 +431,7 @@ void loop() ////////////////////////////////////////////////////////////////////
     {
       Serial.print("failure ");
     }
-    /*Serial.print(" flag0 ");
+    Serial.print(" flag0 ");
     Serial.print(flag0);
     Serial.print(" flag_slide ");
     Serial.print(flag_slide);
@@ -433,32 +444,36 @@ void loop() ////////////////////////////////////////////////////////////////////
     Serial.print(" flag4 ");
     Serial.print(flag4);
     Serial.print(" flag_shot ");
-    Serial.print(flag_shot);*/
-    /*Serial.print(" flag5 ");
+    Serial.print(flag_shot);
+    Serial.print(" flag5 ");
     Serial.print(flag5);
     Serial.print(" flag6 ");
-    Serial.println(flag6);*/
+    Serial.print(flag6);
+    Serial.print(" count_shot ");
+    Serial.print(count_shot);
+    Serial.print(" speed_shot ");
+    Serial.println(speed_shot);
 
-    Serial.print(" azimuth_tgt ");
+    /*Serial.print(" azimuth_tgt ");
     Serial.print(azimuth_tgt);
     Serial.print(" shotdeg_tgt ");
     Serial.print(shotdeg_tgt);
     Serial.print(" slide_tgt ");
-    Serial.print(slide_tgt);
+    Serial.print(slide_tgt);*/
     //Serial.print(" KOUDEN ");
     //Serial.print(analogRead(KOUDEN));
-    Serial.print(" encr_slide ");
+    /*Serial.print(" encr_slide ");
     Serial.print(encr_slide);
     Serial.print(" encr_shotdeg ");
     Serial.print(encr_shotdeg);
     Serial.print(" encr_azimuth ");
-    Serial.print(encr_azimuth);
-    Serial.print(" speed_slide ");
+    Serial.println(encr_azimuth);*/
+    /*Serial.print(" speed_slide ");
     Serial.print(speed_slide);
     Serial.print(" speed_shotdeg ");
     Serial.print(speed_shotdeg);
     Serial.print(" speed_azimuth ");
-    Serial.println(speed_azimuth);
+    Serial.println(speed_azimuth);*/
     /*Serial.print(" master_pic_order ");
   Serial.print(master_pic_order);
   Serial.print(" master_release_order ");
