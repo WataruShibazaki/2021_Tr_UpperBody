@@ -31,12 +31,14 @@ double speed_shotdeg, enc_shotdeg, encpast_shotdeg, encsabn_shotdeg, encval_shot
 double speed_slide, encr_slide, shotdeg_lowlimit = 0;
 double shotkp, shotki, shotkd; //スライドレール
 double speed_shot;
-double shot_azimuth[10] = {2.552, 2.177, 2.479, 2.107, 2.324, 1.013, 0.642, 0.637, 1.050, 0.804};
+//double shot_azimuth[10] = {2.552, 2.177, 2.479, 2.107, 2.324, 1.013, 0.642, 0.637, 1.050, 0.804};
+double shot_azimuth[10] = {1.57,1.57,1.57,1.57,1.57,1.57,1.57,1.57,1.57,1.57};
 //double shot_shotdeg[10] = {1.6, 1.5, 1.6, 1.5, 1.6, 1.5, 1.6, 1.5, 1.6, 1.5};
-double shot_shotdeg[10] = {1.5, 1.4, 1.3, 1.5, 1.4, 1.3, 1.5, 1.4, 1.3, 1.5};
-double shot_slide[10] = {-4.5, -30, -55.5, -79.5, -104, -4.5, -30, -55.5, -79.5, -104};
+//double shot_shotdeg[10] = {1.5, 1.4, 1.3, 1.5, 1.4, 1.3, 1.5, 1.4, 1.3, 1.5};
+double shot_shotdeg[10] = {1.6,1.6,1.6,1.6,1.6,1.6,1.6,1.6,1.6,1.6};
+double shot_slide[10] = {-4.5, -30, -55.5, -79.5, -104, -4.5, -30, -55.5, -79.5, -103};
 //double shot_roller[10] = {6, 6, 6, 6, 6, 6, 6, 6, 6, 6};
-double shot_roller[10] = {1, 0.5, 1, 0.5, 1, 0.5, 1, 0.5, 1, 0.5};
+double shot_roller[10] = {5, 6, 7, 8, 9, 3, 3, 3, 3, 3};
 
 RoboClaw roboclaw(&Serial1, 10000);
 AMT203read AbsoluteENC(true);
@@ -241,11 +243,10 @@ void loop() ////////////////////////////////////////////////////////////////////
     //初期化//////////////////////////////////////////////////////////////
     if (flag0 == true)
     {
-      //shotdeg_lowlimit = 0; //10
-      shotdeg_lowlimit = 10;
-      shotkp = 45;
-      shotki = 7;
-      shotkd = 7;
+      shotdeg_lowlimit = 0; //10
+      shotkp = 90;
+      shotki = 5;
+      shotkd = 5;
       if (analogRead(KOUDEN) > 100 && flag_slide == false)
       {
         roboclaw.ForwardM1(RC2_ad, 20);
@@ -284,19 +285,16 @@ void loop() ////////////////////////////////////////////////////////////////////
     //if (master_shot_order > 0 && flag2 == true)
     if (digitalRead(S2) < 1 && flag2 == true && flag_shot == false && count_shot == 0)
     {
-      shotkp = 90;
-      shotki = 5;
-      shotkd = 5;
       azimuth_tgt = shot_azimuth[count_shot];
       shotdeg_tgt = shot_shotdeg[count_shot];
       slide_tgt = shot_slide[count_shot];
       roller_tgt = shot_roller[count_shot];
+      flag_shot = true;
     }
-    if (flag2 == true && encr_slide <= slide_tgt + 0.3 && encr_slide >= slide_tgt - 0.3 && encr_azimuth <= azimuth_tgt + 0.1 && encr_azimuth >= azimuth_tgt - 0.1 && encr_shotdeg <= shotdeg_tgt + 0.1 && encr_shotdeg >= shotdeg_tgt - 0.1)
+    if (flag2 == true && flag_shot == true && encr_slide <= slide_tgt + 0.3 && encr_slide >= slide_tgt - 0.3 && encr_azimuth <= azimuth_tgt + 0.1 && encr_azimuth >= azimuth_tgt - 0.1 && encr_shotdeg <= shotdeg_tgt + 0.1 && encr_shotdeg >= shotdeg_tgt - 0.1)
     {
       AS2 = true;
       AS5 = true;
-      flag_shot = true;
       flag2 = false;
       flag3 = true;
       count_shot++;
