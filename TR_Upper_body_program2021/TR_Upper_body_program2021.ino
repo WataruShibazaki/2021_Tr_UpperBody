@@ -21,7 +21,7 @@ bool flag_10ms, flag_SWs, flag_100ms, flag_shotsec;
 bool flag0 = true, flag1 = false, flag2 = false, flag3 = false, flag4 = false;
 bool flag5 = false, flag6 = false, flag7 = false, flag8 = false, flag9 = false;
 bool AS1 = false, AS2 = false, AS3 = false, AS4 = false, AS5 = false;
-bool flag_slide = false, flag_shot = false;
+bool flag_slide = false, flag_shot = false, flag_serial = false;
 int count10ms = 0, count_SWs = 0, count100ms = 0, count_shot = 0, count_shotsec;
 int AE1 = 0, AE2 = 0; //アブソリュートエンコーダーの値
 int programcheck = 0;
@@ -34,10 +34,10 @@ double shotkp, shotki, shotkd; //スライドレール
 double speed_shot;
 //double shot_azimuth[10] = {2.552, 2.177, 2.479, 2.107, 2.324, 1.013, 0.642, 0.637, 1.050, 0.804};
 //double shot_azimuth[10] = {1.57,1.57,1.57,1.57,1.57,1.57,1.57,1.57,1.57,1.57};
-double shot_azimuth[10] = {0,0,0,0,0,0,0,0,0,0};
+double shot_azimuth[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 //double shot_shotdeg[10] = {1.6, 1.5, 1.6, 1.5, 1.6, 1.5, 1.6, 1.5, 1.6, 1.5};
 //double shot_shotdeg[10] = {1.5, 1.4, 1.3, 1.5, 1.4, 1.3, 1.5, 1.4, 1.3, 1.5};
-double shot_shotdeg[10] = {1.6,1.6,1.6,1.6,1.6,1.6,1.6,1.6,1.6,1.6};
+double shot_shotdeg[10] = {1.6, 1.6, 1.6, 1.6, 1.6, 1.6, 1.6, 1.6, 1.6, 1.6};
 double shot_slide[10] = {-4.5, -30, -55.5, -79.5, -104, -4.5, -30, -55.5, -79.5, -103};
 //double shot_roller[10] = {6, 6, 6, 6, 6, 6, 6, 6, 6, 6};
 double shot_roller[10] = {5, 6, 7, 8, 9, 3, 3, 3, 3, 3};
@@ -61,7 +61,7 @@ void timer()
   {
     flag_10ms = true;
     count10ms = 0;
-    programcheck ++;
+    programcheck++;
   }
   count100ms++;
   if (count100ms >= 10)
@@ -227,7 +227,7 @@ bool write_mts()
 {
   bool success_w = false;
   mts[0] = 82;
-  mts[1] = mts[0]^0xB4;
+  mts[1] = mts[0] ^ 0xB4;
   Serial_fm.write(mts[0]);
   Serial_fm.write(mts[1]);
   Serial_fm.write(0xB4);
@@ -235,7 +235,6 @@ bool write_mts()
 
   return success_w;
 }
-
 void loop() ////////////////////////////////////////////////////////////////////////////
 {
   if (flag_10ms == true)
@@ -354,7 +353,7 @@ void loop() ////////////////////////////////////////////////////////////////////
       count_SWs = 0;
       flag_SWs = false;
     }
-    //PID常時動作////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////
     if (speed_azimuth >= 0)
     {
       roboclaw.BackwardM1(RC1_ad, speed_azimuth);
@@ -362,7 +361,7 @@ void loop() ////////////////////////////////////////////////////////////////////
     else if (speed_azimuth < 0)
     {
       speed_azimuth = speed_azimuth * (-1);
-      roboclaw.ForwardM1(RC1_ad, speed_azimuth);
+      roboclaw.ForwardM1(RC1_ad, speed_shotdeg);
     }
 
     if (speed_shotdeg >= 0)
@@ -389,35 +388,37 @@ void loop() ////////////////////////////////////////////////////////////////////
     }
     roboclaw.SpeedM1(RC3_ad, speed_shot);
     roboclaw.SpeedM2(RC3_ad, speed_shot);
-
     digitalWrite(AS1_PIN, AS1);
     digitalWrite(AS2_PIN, AS2);
     digitalWrite(AS3_PIN, AS3);
     digitalWrite(AS4_PIN, AS4);
     digitalWrite(AS5_PIN, AS5);
     //エンコーダーリセット/////////////////////////////////////////////////
-    /*if (digitalRead(boardSW) < 1)
+    if (digitalRead(boardSW) < 1)
     {
-      AbsoluteENC.AMT203_set_zero1();
+      /*AbsoluteENC.AMT203_set_zero1();
       AbsoluteENC.AMT203_set_zero2();
       encval_azimuth = 0;
       encval_shotdeg = 0;
       encr_azimuth = 0;
       encr_shotdeg = 0;
       encpast_azimuth = 0;
-      encpast_shotdeg = 0;
-    }*/
+      encpast_shotdeg = 0;*/
+      flag_serial = !flag_serial;
+    }
     /////////////////////////////////////////////////////////////////////
-    Serial.print("tuusin-");
-    if (read_mfs() == true)
+    if (flag_serial == true)
     {
-      Serial.print("success ");
-    }
-    else if (read_mfs() == false)
-    {
-      Serial.print("failure ");
-    }
-    /*Serial.print(" flag0 ");
+      Serial.print("tuusin-");
+      if (read_mfs() == true)
+      {
+        Serial.print("success ");
+      }
+      else if (read_mfs() == false)
+      {
+        Serial.print("failure ");
+      }
+      /*Serial.print(" flag0 ");
     Serial.print(flag0);
     Serial.print(" flag_slide ");
     Serial.print(flag_slide);
@@ -440,46 +441,47 @@ void loop() ////////////////////////////////////////////////////////////////////
     Serial.print(" speed_shot ");
     Serial.println(speed_shot);*/
 
-    /*Serial.print(" azimuth_tgt ");
+      /*Serial.print(" azimuth_tgt ");
     Serial.print(azimuth_tgt);
     Serial.print(" shotdeg_tgt ");
     Serial.print(shotdeg_tgt);
     Serial.print(" slide_tgt ");
     Serial.print(slide_tgt);*/
-    //Serial.print(" KOUDEN ");
-    //Serial.print(analogRead(KOUDEN));
-    /*Serial.print(" encr_slide ");
-    Serial.print(encr_slide);
-    Serial.print(" encr_shotdeg ");
-    Serial.print(encr_shotdeg);
-    Serial.print(" encr_azimuth ");
-    Serial.print(encr_azimuth);
-    Serial.print(" speed_slide ");
-    Serial.print(speed_slide);
-    Serial.print(" speed_shotdeg ");
-    Serial.print(speed_shotdeg);
-    Serial.print(" speed_azimuth ");
-    Serial.println(speed_azimuth);*/
+      //Serial.print(" KOUDEN ");
+      //Serial.print(analogRead(KOUDEN));
+      Serial.print(" encr_slide ");
+      Serial.print(encr_slide);
+      Serial.print(" encr_shotdeg ");
+      Serial.print(encr_shotdeg);
+      Serial.print(" encr_azimuth ");
+      Serial.print(encr_azimuth);
+      Serial.print(" speed_slide ");
+      Serial.print(speed_slide);
+      Serial.print(" speed_shotdeg ");
+      Serial.print(speed_shotdeg);
+      Serial.print(" speed_azimuth ");
+      Serial.println(speed_azimuth);
 
-    Serial.print(" mfs[0] ");
+      /*Serial.print(" mfs[0] ");
     Serial.print(mfs[0]);
     Serial.print(" mfs[1] ");
     Serial.print(mfs[1]);
     Serial.print(" mfs[2] ");
     Serial.print(mfs[2]);
     Serial.print(" mfs[3] ");
-    Serial.print(mfs[3]);
+    Serial.print(mfs[3]);*/
 
-    Serial.print(" master_pic_order ");
-  Serial.print(master_pic_order);
-  Serial.print(" master_release_order ");
-  Serial.print(master_release_order);
-  Serial.print(" master_prepare_order ");
-  Serial.print(master_prepare_order);
-  Serial.print(" master_shot_order ");
-  Serial.print(master_shot_order);
+      /*Serial.print(" master_pic_order ");
+    Serial.print(master_pic_order);
+    Serial.print(" master_release_order ");
+    Serial.print(master_release_order);
+    Serial.print(" master_prepare_order ");
+    Serial.print(master_prepare_order);
+    Serial.print(" master_shot_order ");
+    Serial.print(master_shot_order);
     Serial.print("  programcheck ");
-  Serial.println(programcheck);
+    Serial.println(programcheck);*/
+    }
     if (flag_100ms)
     {
       digitalWrite(boardLED1, !digitalRead(boardLED1));
