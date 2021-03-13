@@ -11,6 +11,9 @@
 int CS1;
 int CS2;
 
+double pre_position1;
+double pre_position2;
+
 uint8_t timeoutCounter;
 AMT203read::AMT203read(bool b)
 {
@@ -45,7 +48,7 @@ double AMT203read::AMT203_read1(int mode)
     while (data1 != rd_pos && timeoutCounter++ < timoutLimit1)
     {
       data1 = SPIWrite1(nop);
-      return 65535;
+      return pre_position1;
     }
 
     if (timeoutCounter < timoutLimit1)
@@ -63,6 +66,7 @@ double AMT203read::AMT203_read1(int mode)
     else if(mode==1){
       currentPosition1 = currentPosition1 * 0.08789;
     }
+    pre_position1 = currentPosition1;
     return currentPosition1;
   }
 }
@@ -82,7 +86,7 @@ double AMT203read::AMT203_read2(int mode)
     while (data2 != rd_pos && timeoutCounter++ < timoutLimit2)
     {
       data2 = SPIWrite2(nop);
-      return 65535;
+      return pre_position2;
     }
 
     if (timeoutCounter < timoutLimit2)
@@ -100,6 +104,7 @@ double AMT203read::AMT203_read2(int mode)
     else if(mode==1){
       currentPosition2 = currentPosition2 * 0.08789;
     }
+    pre_position2 = currentPosition2;
     return currentPosition2;
   }
 }

@@ -9,7 +9,7 @@
 #include "PIDclass.h"
 #include "AMT203read.h"
 #define timer_time 10
-#define Serial_fm Serial5
+#define Serial_fm Serial2
 
 uint8_t mfs_p[6]; //自己位置データ[Y,Y,X,X,Z,Z]　mfs=master from serial p=position
 uint8_t mfs[4];   //命令1 命令2　チェックサム 改行コード
@@ -24,6 +24,7 @@ bool AS1 = false, AS2 = false, AS3 = false, AS4 = false, AS5 = false;
 bool flag_slide = false, flag_shot = false;
 int count10ms = 0, count_SWs = 0, count100ms = 0, count_shot = 0, count_shotsec;
 int AE1 = 0, AE2 = 0; //アブソリュートエンコーダーの値
+int programcheck = 0;
 int M1max, M2max, M5max;
 double azimuth_tgt, shotdeg_tgt, slide_tgt, roller_tgt = 0;                                        //方位角,射角(0~1.70[rad](0~100°)),スライドレール
 double speed_azimuth, enc_azimuth, encpast_azimuth, encsabn_azimuth, encval_azimuth, encr_azimuth; //AE1
@@ -32,7 +33,8 @@ double speed_slide, encr_slide, shotdeg_lowlimit = 0;
 double shotkp, shotki, shotkd; //スライドレール
 double speed_shot;
 //double shot_azimuth[10] = {2.552, 2.177, 2.479, 2.107, 2.324, 1.013, 0.642, 0.637, 1.050, 0.804};
-double shot_azimuth[10] = {1.57,1.57,1.57,1.57,1.57,1.57,1.57,1.57,1.57,1.57};
+//double shot_azimuth[10] = {1.57,1.57,1.57,1.57,1.57,1.57,1.57,1.57,1.57,1.57};
+double shot_azimuth[10] = {0,0,0,0,0,0,0,0,0,0};
 //double shot_shotdeg[10] = {1.6, 1.5, 1.6, 1.5, 1.6, 1.5, 1.6, 1.5, 1.6, 1.5};
 //double shot_shotdeg[10] = {1.5, 1.4, 1.3, 1.5, 1.4, 1.3, 1.5, 1.4, 1.3, 1.5};
 double shot_shotdeg[10] = {1.6,1.6,1.6,1.6,1.6,1.6,1.6,1.6,1.6,1.6};
@@ -59,6 +61,7 @@ void timer()
   {
     flag_10ms = true;
     count10ms = 0;
+    programcheck ++;
   }
   count100ms++;
   if (count100ms >= 10)
@@ -102,7 +105,7 @@ void timer()
   pid_shotdeg.setPara(shotkp, shotki, shotkd);
   enc_shotdeg = AbsoluteENC.AMT203_read2(0);
   encsabn_shotdeg = enc_shotdeg - encpast_shotdeg;
-  if (encsabn_shotdeg > 3500)
+  /*if (encsabn_shotdeg > 3500)
   {
     encsabn_shotdeg = encsabn_shotdeg - 4095;
   }
@@ -111,14 +114,15 @@ void timer()
     encsabn_shotdeg = encsabn_shotdeg + 4095;
   }
   encval_shotdeg += encsabn_shotdeg;
-  encpast_shotdeg = enc_shotdeg;
-  encr_shotdeg = ((encval_shotdeg / 4095) * 6.28);
-  //encr_shotdeg = PIDFilter_shotdeg.LowPassFilter(encr_shotdeg);
+  encpast_shotdeg = enc_shotdeg;*/
+  encr_shotdeg = ((enc_shotdeg / 4095) * 6.28);
   speed_shotdeg = pid_shotdeg.getCmd(shotdeg_tgt, encr_shotdeg, 10); //20
   speed_shotdeg = min(speed_shotdeg, shotdeg_lowlimit);
   speed_shotdeg = PIDFilter_shotdeg.LowPassFilter(speed_shotdeg);
 
+  encr_slide = (ISO::ISOkeisu_read_MTU1(0, false) / 1000) * 6.28;
   speed_slide = pid_slide.getCmd(slide_tgt, encr_slide, 20);
+  speed_slide = PIDFilter_slide.LowPassFilter(speed_slide);
 
   speed_shot = ((roller_tgt / rollerR) * rollerppr) / (2 * PI);
   ///////////////////////////////////////////////////////////////////////////////
@@ -129,21 +133,21 @@ void timer()
 void setup()
 {
   Serial.begin(115200);
-  Serial_fm.begin(115200);
+  Serial_fm.begin(23400);
   roboclaw.begin(115200);
   AbsoluteENC.AMT203_SPI_set(10, 30);
 
   pid_slide.PIDinit(0.0, 0.0);
-  pid_slide.setPara(10, 0, 0);
+  pid_slide.setPara(10, 1, 1);
   pid_azimuth.PIDinit(0.0, 0.0);
-  pid_azimuth.setPara(180, 0, 18);
+  pid_azimuth.setPara(180, 18, 18);
   pid_shotdeg.PIDinit(0.0, 0.0);
   //pid_shotdeg.setPara(90, 5, 5);
   //pid_shotdeg.setPara(45,7,7);
 
   PIDFilter_azimuth.setLowPassPara(0.005, 0.0);
-  PIDFilter_shotdeg.setLowPassPara(0.005, 0.0);
-  PIDFilter_slide.setLowPassPara(0.1, 0.0);
+  PIDFilter_shotdeg.setLowPassPara(0.05, 0.0);
+  PIDFilter_slide.setLowPassPara(0.2, 0.0);
 
   pinMode(PIN_LED3, OUTPUT);
   pinMode(PIN_LED2, OUTPUT);
@@ -166,7 +170,6 @@ void setup()
   MsTimerTPU3::start();
   ISO::ISOkeisu_SET();
   ISO::ISOkeisu_MTU1(M5ppr); //M5
-  ISO::ISOkeisu_MTU2(400);
   digitalWrite(boardLED2, 1);
   shotdeg_tgt = 1.7; //回収=0.5
   azimuth_tgt = 0;
@@ -224,10 +227,10 @@ bool write_mts()
 {
   bool success_w = false;
   mts[0] = 82;
-  mts[1] = mts[0];
+  mts[1] = mts[0]^0xB4;
   Serial_fm.write(mts[0]);
   Serial_fm.write(mts[1]);
-  Serial_fm.write('\n');
+  Serial_fm.write(0xB4);
   success_w = true;
 
   return success_w;
@@ -238,8 +241,6 @@ void loop() ////////////////////////////////////////////////////////////////////
   if (flag_10ms == true)
   {
     digitalWrite(PIN_LED1, !digitalRead(PIN_LED1));
-    //エンコーダー読み取り/////////////////////////////////////////////////
-    encr_slide = (ISO::ISOkeisu_read_MTU1(0, false) / 1000) * 6.28;
     //初期化//////////////////////////////////////////////////////////////
     if (flag0 == true)
     {
@@ -268,22 +269,9 @@ void loop() ////////////////////////////////////////////////////////////////////
         }
       }
     }
-    //手動装填/////////////////////////////////////////////////////////////
-    //if (master_pic_order > 0 && flag1 == true)
-    if (digitalRead(S1) < 1 && flag1 == true)
-    {
-      //shotdeg_tgt = 1.60; //要変更
-      shotdeg_lowlimit = 0;
-      shotkp = 0;
-      shotki = 0;
-      shotkd = 0;
-      AS1 = false;
-      flag1 = false;
-      flag2 = true;
-    }
     //発射////////////////////////////////////////////////////////////////
     //if (master_shot_order > 0 && flag2 == true)
-    if (digitalRead(S2) < 1 && flag2 == true && flag_shot == false && count_shot == 0)
+    if (digitalRead(S2) < 1 && flag1 == true && flag_shot == false && count_shot == 0)
     {
       azimuth_tgt = shot_azimuth[count_shot];
       shotdeg_tgt = shot_shotdeg[count_shot];
@@ -291,22 +279,22 @@ void loop() ////////////////////////////////////////////////////////////////////
       roller_tgt = shot_roller[count_shot];
       flag_shot = true;
     }
-    if (flag2 == true && flag_shot == true && encr_slide <= slide_tgt + 0.3 && encr_slide >= slide_tgt - 0.3 && encr_azimuth <= azimuth_tgt + 0.1 && encr_azimuth >= azimuth_tgt - 0.1 && encr_shotdeg <= shotdeg_tgt + 0.1 && encr_shotdeg >= shotdeg_tgt - 0.1)
+    if (flag1 == true && flag_shot == true && encr_slide <= slide_tgt + 0.3 && encr_slide >= slide_tgt - 0.3 && encr_azimuth <= azimuth_tgt + 0.1 && encr_azimuth >= azimuth_tgt - 0.1 && encr_shotdeg <= shotdeg_tgt + 0.1 && encr_shotdeg >= shotdeg_tgt - 0.1)
     {
       AS2 = true;
       AS5 = true;
-      flag2 = false;
-      flag3 = true;
+      flag1 = false;
+      flag2 = true;
       count_shot++;
     }
-    if (digitalRead(S2) < 1 && flag3 == true && flag_shot == true && flag_shotsec == true && count_shot > 0)
+    if (digitalRead(S2) < 1 && flag2 == true && flag_shot == true && flag_shotsec == true && count_shot > 0)
     {
       AS5 = false;
       count_shotsec = 0;
       flag_shotsec = false;
       flag_shot = false;
     }
-    if (flag3 == true && flag_shot == false && flag_shotsec == true)
+    if (flag2 == true && flag_shot == false && flag_shotsec == true)
     {
       AS5 = true;
       azimuth_tgt = shot_azimuth[count_shot];
@@ -328,8 +316,8 @@ void loop() ////////////////////////////////////////////////////////////////////
           slide_tgt = -60;
           azimuth_tgt = 0;
           roller_tgt = 0;
-          flag3 = false;
-          flag4 = true;
+          flag2 = false;
+          flag3 = true;
           AS5 = false;
           AS2 = false;
         }
@@ -337,7 +325,7 @@ void loop() ////////////////////////////////////////////////////////////////////
     }
     //回収////////////////////////////////////////////////////////////////
     //if (master_pic_order > 0 && flag4 == true)
-    if (digitalRead(S1) < 1 && flag4 == true)
+    if (digitalRead(S1) < 1 && flag3 == true)
     {
       shotdeg_lowlimit = 10;
       shotkp = 45;
@@ -349,18 +337,18 @@ void loop() ////////////////////////////////////////////////////////////////////
       AS4 = false;
       count_SWs = 0;
       flag_SWs = false;
-      flag4 = false;
-      flag5 = true;
+      flag3 = false;
+      flag4 = true;
     }
     //if (master_pic_order > 0 && flag5 == true)
-    if (digitalRead(S2) < 1 && flag5 == true && flag_SWs == true)
+    if (digitalRead(S2) < 1 && flag4 == true && flag_SWs == true)
     {
       AS3 = !AS3;
       count_SWs = 0;
       flag_SWs = false;
     }
     //if(master_prepare_order > 0 && flag5 == true)
-    if (digitalRead(S1) < 1 && flag5 == true && flag_SWs == true)
+    if (digitalRead(S1) < 1 && flag4 == true && flag_SWs == true)
     {
       AS4 = !AS4;
       count_SWs = 0;
@@ -429,7 +417,7 @@ void loop() ////////////////////////////////////////////////////////////////////
     {
       Serial.print("failure ");
     }
-    Serial.print(" flag0 ");
+    /*Serial.print(" flag0 ");
     Serial.print(flag0);
     Serial.print(" flag_slide ");
     Serial.print(flag_slide);
@@ -450,7 +438,7 @@ void loop() ////////////////////////////////////////////////////////////////////
     Serial.print(" count_shot ");
     Serial.print(count_shot);
     Serial.print(" speed_shot ");
-    Serial.println(speed_shot);
+    Serial.println(speed_shot);*/
 
     /*Serial.print(" azimuth_tgt ");
     Serial.print(azimuth_tgt);
@@ -465,21 +453,33 @@ void loop() ////////////////////////////////////////////////////////////////////
     Serial.print(" encr_shotdeg ");
     Serial.print(encr_shotdeg);
     Serial.print(" encr_azimuth ");
-    Serial.println(encr_azimuth);*/
-    /*Serial.print(" speed_slide ");
+    Serial.print(encr_azimuth);
+    Serial.print(" speed_slide ");
     Serial.print(speed_slide);
     Serial.print(" speed_shotdeg ");
     Serial.print(speed_shotdeg);
     Serial.print(" speed_azimuth ");
     Serial.println(speed_azimuth);*/
-    /*Serial.print(" master_pic_order ");
+
+    Serial.print(" mfs[0] ");
+    Serial.print(mfs[0]);
+    Serial.print(" mfs[1] ");
+    Serial.print(mfs[1]);
+    Serial.print(" mfs[2] ");
+    Serial.print(mfs[2]);
+    Serial.print(" mfs[3] ");
+    Serial.print(mfs[3]);
+
+    Serial.print(" master_pic_order ");
   Serial.print(master_pic_order);
   Serial.print(" master_release_order ");
   Serial.print(master_release_order);
   Serial.print(" master_prepare_order ");
   Serial.print(master_prepare_order);
   Serial.print(" master_shot_order ");
-  Serial.println(master_shot_order);*/
+  Serial.print(master_shot_order);
+    Serial.print("  programcheck ");
+  Serial.println(programcheck);
     if (flag_100ms)
     {
       digitalWrite(boardLED1, !digitalRead(boardLED1));
