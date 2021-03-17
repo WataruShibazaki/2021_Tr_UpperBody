@@ -144,4 +144,3 @@ uint8_t AMT203read::SPIWrite2(uint8_t sendByte)
   delayMicroseconds(10);
   return data;
 }
-
